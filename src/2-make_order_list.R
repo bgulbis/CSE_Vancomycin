@@ -4,8 +4,6 @@ library(tidyverse)
 library(edwr)
 
 ords <- read_data("data/raw", "orders") %>%
-    as.order_by() %>%
-    rename(order.id = `Source Order ID`,
-           order.status = `Order Department Status - Generic`)
+    as.order_by()
 
 concat_encounters(unique(ords$order.id))
