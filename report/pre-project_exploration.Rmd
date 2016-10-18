@@ -1,0 +1,19 @@
+---
+title: "CS&E Pre-Project Exploration"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+dirr::get_rds("../data/tidy")
+```
+
+```{r}
+not_drawn <- orders_valid %>%
+    filter(request == FALSE)
+
+summary(as.numeric(not_drawn$collect_diff))
+```
+

@@ -27,3 +27,5 @@ orders_valid <- order_times %>%
     select(-Canceled, -Discontinued) %>%
     mutate(request = str_detect(order, "Request"),
            collect_diff = difftime(Collected, detail.datetime, units = "mins"))
+
+saveRDS(orders_valid, "data/tidy/orders_valid.Rds")
