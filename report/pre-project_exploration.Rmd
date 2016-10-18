@@ -6,14 +6,52 @@ output: html_notebook
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(lubridate)
 
 dirr::get_rds("../data/tidy")
 ```
 
+## Exploration
+
 ```{r}
 not_drawn <- orders_valid %>%
-    filter(request == FALSE)
+    filter(request == FALSE) %>%
+    mutate(shift = if_else(hour(detail.datetime) >= 7 & hour(detail.datetime) < 19, "day", "night"))
+```
 
+Number of levels ordered: `r nrow(not_drawn)`  
+Number of levels drawn: `r sum(!is.na(not_drawn$collect_diff))`  
+Percent of levels not drawn: `r (nrow(not_drawn) - sum(!is.na(not_drawn$collect_diff))) / nrow(not_drawn) * 100`%  
+
+## By Shift
+
+```{r}
+ggplot(not_drawn, aes(x = shift)) +
+    geom_bar() +
+    ggtitle("Number of Levels per Shift")
+```
+
+
+## Time Differences
+
+Time between when levels was ordered to be drawn and when it was actually drawn.
+
+```{r}
 summary(as.numeric(not_drawn$collect_diff))
+```
+
+### Day Shift
+```{r}
+summary(as.numeric(not_drawn[not_drawn$shift == "day", ]$collect_diff))
+```
+
+### Night Shift
+```{r}
+summary(as.numeric(not_drawn[not_drawn$shift == "night", ]$collect_diff))
+```
+
+```{r}
+ggplot(not_drawn, aes(x = shift, y = as.numeric(collect_diff))) +
+    geom_boxplot()
 ```
 
