@@ -3,7 +3,12 @@
 library(tidyverse)
 library(edwr)
 
-ords <- read_data("data/raw", "orders") %>%
-    as.order_by()
+timing <- read_data("data/raw", "timing") %>%
+    as.order_timing() %>%
+    filter(order.unit == "HH CVICU")
 
-concat_encounters(unique(ords$order.id))
+print(concat_encounters(unique(timing$order.id)))
+
+# run EDW query: Orders - Actions - Source ID Prompt
+
+saveRDS(timing, "data/tidy/order_timing.Rds")

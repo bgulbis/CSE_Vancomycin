@@ -11,4 +11,4 @@ pts <- read_data("data/raw", "patients") %>%
 
 print(concat_encounters(pts$pie.id))
 
-# use results to run EDW query: Orders - with Status - Prompt
+# use results to run EDW query: Orders - Timing - Prompt
