@@ -1,7 +1,9 @@
 ---
 title: "CS&E Pre-Project Exploration"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: html_notebook
+output: 
+    html_notebook:
+        code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
@@ -15,13 +17,79 @@ dirr::get_rds("../data/tidy")
 
 ```{r}
 not_drawn <- orders_valid %>%
-    filter(request == FALSE) %>%
-    mutate(shift = if_else(hour(detail.datetime) >= 7 & hour(detail.datetime) < 19, "day", "night"))
+    filter(request == FALSE) 
 ```
 
-Number of levels ordered: `r nrow(not_drawn)`  
-Number of levels drawn: `r sum(!is.na(not_drawn$collect_diff))`  
-Percent of levels not drawn: `r (nrow(not_drawn) - sum(!is.na(not_drawn$collect_diff))) / nrow(not_drawn) * 100`%  
+Number of levels ordered (excludes canclled labs and lab requests): `r nrow(not_drawn)`  
+Number of levels drawn: `r sum(!is.na(not_drawn$collect_detail_diff))`  
+Percent of levels drawn within 90 minutes of scheduled time: `r round(sum(not_drawn$timely90, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
+Percent of levels drawn within 60 minutes of scheduled time: `r round(sum(not_drawn$timely60, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
+Percent of levels drawn within 30 minutes of scheduled time: `r round(sum(not_drawn$timely30, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
+Percent of levels never drawn: `r round((nrow(not_drawn) - sum(!is.na(not_drawn$collect_detail_diff))) / nrow(not_drawn) * 100, 2)`%  
+  
+Number ordered by Vancomycin Request: `r sum(orders_valid$request)`  
+
+### Timing
+
+Distribution of difference between desired draw time and actual draw time.
+
+```{r}
+mn <- mean(not_drawn$collect_detail_diff, na.rm = TRUE)
+std <- sd(not_drawn$collect_detail_diff, na.rm = TRUE)
+
+ggplot(not_drawn, aes(x = collect_detail_diff)) +
+    geom_density() +
+    geom_vline(xintercept = mn, color = "blue") +
+    geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
+    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed")
+# coord_cartesian(xlim = c(-200, 200))
+```
+
+Remove outliers
+
+```{r}
+q <- quantile(not_drawn$collect_detail_diff, na.rm = TRUE, probs = c(0.25, 0.5, 0.75))
+iqr <- IQR(not_drawn$collect_detail_diff, na.rm = TRUE)
+
+no_outliers <- not_drawn %>%
+    filter(!is.na(collect_detail_diff),
+           collect_detail_diff >= q[1] - (iqr * 1.5),
+           collect_detail_diff <= (iqr * 1.5) + q[3])
+
+mn <- mean(no_outliers$collect_detail_diff, na.rm = TRUE)
+std <- sd(no_outliers$collect_detail_diff, na.rm = TRUE)
+
+ggplot(no_outliers, aes(x = collect_detail_diff)) +
+    geom_density() +
+    geom_vline(xintercept = mn, color = "blue") +
+    geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
+    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed")
+```
+
+Relationship between how far in advance the level was ordered, and how close to desired draw time the level was actually drawn.
+
+```{r}
+orders_valid %>%
+    filter(!is.na(sched_diff),
+           !is.na(collect_detail_diff)) %>%
+    ggplot(aes(x = as.numeric(sched_diff), y = as.numeric(collect_detail_diff))) +
+    geom_point(aes(color = shift), alpha = 0.6) +
+    scale_x_continuous(breaks = seq(0, 96, 12)) +
+    ggtitle("Time from order to draw vs. time to actual draw") +
+    xlab("Time from ordering to desired draw (hours)") +
+    ylab("Time from desired draw to actual draw (minutes)")
+```
+
+Among levels not drawn, how far in advance of due time was level ordered
+
+```{r}
+not_drawn %>%
+    filter(!is.na(sched_diff),
+           is.na(collect_detail_diff)) %>%
+    ggplot(aes(x = shift, y = sched_diff)) +
+    geom_boxplot()
+```
+
 
 ## By Shift
 
@@ -31,27 +99,36 @@ ggplot(not_drawn, aes(x = shift)) +
     ggtitle("Number of Levels per Shift")
 ```
 
+Distribution by shift
+
+```{r}
+not_drawn %>%
+    filter(!is.na(shift)) %>%
+    ggplot(aes(x = collect_detail_diff)) +
+    geom_density() +
+    facet_wrap(~ shift)
+```
 
 ## Time Differences
 
-Time between when levels was ordered to be drawn and when it was actually drawn.
+Time (in minutes) between when levels was ordered to be drawn and when it was actually drawn.
 
 ```{r}
-summary(as.numeric(not_drawn$collect_diff))
+summary(as.numeric(not_drawn$collect_detail_diff))
 ```
 
 ### Day Shift
 ```{r}
-summary(as.numeric(not_drawn[not_drawn$shift == "day", ]$collect_diff))
+summary(as.numeric(not_drawn[not_drawn$shift == "day", ]$collect_detail_diff))
 ```
 
 ### Night Shift
 ```{r}
-summary(as.numeric(not_drawn[not_drawn$shift == "night", ]$collect_diff))
+summary(as.numeric(not_drawn[not_drawn$shift == "night", ]$collect_detail_diff))
 ```
 
 ```{r}
-ggplot(not_drawn, aes(x = shift, y = as.numeric(collect_diff))) +
+ggplot(not_drawn, aes(x = shift, y = as.numeric(collect_detail_diff))) +
     geom_boxplot()
 ```
 
