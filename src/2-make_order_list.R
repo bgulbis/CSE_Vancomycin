@@ -9,6 +9,8 @@ timing <- read_data("data/raw", "timing") %>%
 
 print(concat_encounters(unique(timing$order.id)))
 
-# run EDW query: Orders - Actions - Source ID Prompt
+# run EDW queries:
+#   * Orders - Actions - Source Order ID Prompt
+#   * Orders - Details - Source Order ID Prompt
 
 saveRDS(timing, "data/tidy/order_timing.Rds")
