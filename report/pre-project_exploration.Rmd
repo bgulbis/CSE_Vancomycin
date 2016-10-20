@@ -45,7 +45,7 @@ ggplot(not_drawn, aes(x = collect_detail_diff)) +
 # coord_cartesian(xlim = c(-200, 200))
 ```
 
-Remove outliers
+Remove extreme outliers
 
 ```{r}
 q <- quantile(not_drawn$collect_detail_diff, na.rm = TRUE, probs = c(0.25, 0.5, 0.75))
@@ -53,8 +53,8 @@ iqr <- IQR(not_drawn$collect_detail_diff, na.rm = TRUE)
 
 no_outliers <- not_drawn %>%
     filter(!is.na(collect_detail_diff),
-           collect_detail_diff >= q[1] - (iqr * 1.5),
-           collect_detail_diff <= (iqr * 1.5) + q[3])
+           collect_detail_diff >= q[1] - (iqr * 3),
+           collect_detail_diff <= (iqr * 3) + q[3])
 
 mn <- mean(no_outliers$collect_detail_diff, na.rm = TRUE)
 std <- sd(no_outliers$collect_detail_diff, na.rm = TRUE)
@@ -130,5 +130,9 @@ summary(as.numeric(not_drawn[not_drawn$shift == "night", ]$collect_detail_diff))
 ```{r}
 ggplot(not_drawn, aes(x = shift, y = as.numeric(collect_detail_diff))) +
     geom_boxplot()
+```
+
+```{r}
+t.test(collect_detail_diff ~ shift, not_drawn)
 ```
 
