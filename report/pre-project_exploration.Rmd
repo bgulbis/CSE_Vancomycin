@@ -25,7 +25,7 @@ Number of levels drawn: `r sum(!is.na(not_drawn$collect_detail_diff))`
 Percent of levels drawn within 90 minutes of scheduled time: `r round(sum(not_drawn$timely90, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
 Percent of levels drawn within 60 minutes of scheduled time: `r round(sum(not_drawn$timely60, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
 Percent of levels drawn within 30 minutes of scheduled time: `r round(sum(not_drawn$timely30, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
-Percent of levels never drawn: `r round((nrow(not_drawn) - sum(!is.na(not_drawn$collect_detail_diff))) / nrow(not_drawn) * 100, 2)`%  
+Percent of levels ordered but never drawn: `r round((nrow(not_drawn) - sum(!is.na(not_drawn$collect_detail_diff))) / nrow(not_drawn) * 100, 2)`%  
   
 Number ordered by Vancomycin Request: `r sum(orders_valid$request)`  
 
@@ -134,5 +134,20 @@ ggplot(not_drawn, aes(x = shift, y = as.numeric(collect_detail_diff))) +
 
 ```{r}
 t.test(collect_detail_diff ~ shift, not_drawn)
+```
+
+## Labs Not Collected
+
+```{r}
+not_drawn %>%
+    ungroup() %>%
+    # filter(is.na(Collected)) %>%
+    select(Collected, Dispatched, Ordered, Scheduled) %>%
+    mutate(order_dispatch = !is.na(Ordered) & !is.na(Dispatched),
+           sched_dispatch = !is.na(Scheduled) & !is.na(Dispatched),
+           collect_without_dispatch = !is.na(Collected) & is.na(Dispatched),
+           not_collect_dispatch = is.na(Collected) & is.na(Dispatched)) %>%
+    select(order_dispatch:not_collect_dispatch) %>%
+    summarize_all("sum")
 ```
 
