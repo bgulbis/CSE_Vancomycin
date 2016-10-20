@@ -37,9 +37,15 @@ orders <- left_join(timing, actions, by = c("pie.id", "order.id")) %>%
            timely60 = abs(collect_detail_diff) <= 60,
            timely30 = abs(collect_detail_diff) <= 30,
            sched_diff = as.numeric(difftime(detail.datetime, order.action.datetime, units = "hours")),
-           shift = if_else(hour(detail.datetime) >= 7 & hour(detail.datetime) < 19, "day", "night"))
+           shift = if_else(hour(detail.datetime) >= 7 & hour(detail.datetime) < 19, "day", "night")) %>%
+    group_by(pie.id) %>%
+    arrange(pie.id, detail.datetime, order.action.datetime) %>%
+    mutate(mult_levels = is.na(Collected) &
+               lead(Collected) <= detail.datetime + hours(6) &
+               lag(Collected >= detail.datetime - hours(6)))
 
 orders_valid <- orders %>%
-    filter(is.na(cancel.action.datetime))
+    filter(is.na(cancel.action.datetime),
+           mult_levels != TRUE)
 
 saveRDS(orders_valid, "data/tidy/orders_valid.Rds")
