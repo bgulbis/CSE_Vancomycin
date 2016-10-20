@@ -382,8 +382,8 @@ sample estimates:
 <h2>Labs Not Collected</h2>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubm90X2NvbGxlY3QgPC0gbm90X2RyYXduICU+JVxuICAgIHVuZ3JvdXAoKSAlPiVcbiAgICAjIGZpbHRlcihpcy5uYShDb2xsZWN0ZWQpKSAlPiVcbiAgICBzZWxlY3QoQ29sbGVjdGVkLCBEaXNwYXRjaGVkLCBPcmRlcmVkLCBTY2hlZHVsZWQpICU+JVxuICAgIG11dGF0ZShvcmRlcl9kaXNwYXRjaCA9ICFpcy5uYShPcmRlcmVkKSAmICFpcy5uYShEaXNwYXRjaGVkKSxcbiAgICAgICAgICAgc2NoZWRfZGlzcGF0Y2ggPSAhaXMubmEoU2NoZWR1bGVkKSAmICFpcy5uYShEaXNwYXRjaGVkKSxcbiAgICAgICAgICAgY29sbGVjdF93aXRob3V0X2Rpc3BhdGNoID0gIWlzLm5hKENvbGxlY3RlZCkgJiBpcy5uYShEaXNwYXRjaGVkKSxcbiAgICAgICAgICAgbm90X2NvbGxlY3RfZGlzcGF0Y2ggPSBpcy5uYShDb2xsZWN0ZWQpICYgaXMubmEoRGlzcGF0Y2hlZCkpICU+JVxuICAgIHNlbGVjdChvcmRlcl9kaXNwYXRjaDpub3RfY29sbGVjdF9kaXNwYXRjaCkgJT4lXG4gICAgc3VtbWFyaXplX2FsbChcInN1bVwiKVxuYGBgIn0= -->
-<pre class="r"><code>not_collect &lt;- not_drawn %&gt;%
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubm90X2RyYXduICU+JVxuICAgIHVuZ3JvdXAoKSAlPiVcbiAgICAjIGZpbHRlcihpcy5uYShDb2xsZWN0ZWQpKSAlPiVcbiAgICBzZWxlY3QoQ29sbGVjdGVkLCBEaXNwYXRjaGVkLCBPcmRlcmVkLCBTY2hlZHVsZWQpICU+JVxuICAgIG11dGF0ZShvcmRlcl9kaXNwYXRjaCA9ICFpcy5uYShPcmRlcmVkKSAmICFpcy5uYShEaXNwYXRjaGVkKSxcbiAgICAgICAgICAgc2NoZWRfZGlzcGF0Y2ggPSAhaXMubmEoU2NoZWR1bGVkKSAmICFpcy5uYShEaXNwYXRjaGVkKSxcbiAgICAgICAgICAgY29sbGVjdF93aXRob3V0X2Rpc3BhdGNoID0gIWlzLm5hKENvbGxlY3RlZCkgJiBpcy5uYShEaXNwYXRjaGVkKSxcbiAgICAgICAgICAgbm90X2NvbGxlY3RfZGlzcGF0Y2ggPSBpcy5uYShDb2xsZWN0ZWQpICYgaXMubmEoRGlzcGF0Y2hlZCkpICU+JVxuICAgIHNlbGVjdChvcmRlcl9kaXNwYXRjaDpub3RfY29sbGVjdF9kaXNwYXRjaCkgJT4lXG4gICAgc3VtbWFyaXplX2FsbChcInN1bVwiKVxuYGBgIn0= -->
+<pre class="r"><code>not_drawn %&gt;%
     ungroup() %&gt;%
     # filter(is.na(Collected)) %&gt;%
     select(Collected, Dispatched, Ordered, Scheduled) %&gt;%
@@ -394,6 +394,13 @@ sample estimates:
     select(order_dispatch:not_collect_dispatch) %&gt;%
     summarize_all(&quot;sum&quot;)</code></pre>
 <!-- rnb-source-end -->
+<!-- rnb-frame-begin eyJtZXRhZGF0YSI6eyJjbGFzc2VzIjpbIm9yZGVyX3RpbWluZyIsInRibF9lZHdyIiwidGJsX2RmIiwidGJsIiwiZGF0YS5mcmFtZSJdLCJuY29sIjo0LCJucm93IjoxfSwicmRmIjoiSDRzSUFBQUFBQUFBQm0xUVFXN0RJQkRFWUxlS3BVYVIwa00vRVV0SnY5QVg5SlJUTFFJa3R1cUNCV3VseDc0ODZXS0Q1YUlpQWJPemFKaWQ5N2Zqb1R5V2hCQktHTXNJWlFoemlrZEdjckx5OXpjaGJPdFozRTlqWTFvUmZ5d3dYZUJ0SWxSby9xVWNnczBvTnBGclk2V3l0V3hkejBFMGtYV2lVVEpsWDRUcE9pV2d2cmJRbUFIUy9yTTJVTWMzYysrdmlaVTExeW9hOFU3cER4NTNYS2xiMFhFWDNiSkFQc0NwcStVNVZBeXJBRXZKZ1Zkbmk4SlkzUkt0UjlORGF6U3FVUjlrRVZUbmhHMUNiQWJ0TGNxZGFBYjl1ZHUvK2gvK1NUNWI0SHo2azk2RFZoRXRLMzFwdFlwVGRmeWtvdWsxWmpGR1VmVzIxUkJIUWRaVllJRFB3Mkdta1JtSEk3ZGYxaWZXNERjQ0FBQT0ifQ== -->
+<div data-pagedtable>
+<script data-pagedtable-source type="application/json">
+{"columns":[{"label":["order_dispatch"],"name":[1],"type":["int"],"align":["left"]},{"label":["sched_dispatch"],"name":[2],"type":["int"],"align":["right"]},{"label":["collect_without_dispatch"],"name":[3],"type":["int"],"align":["right"]},{"label":["not_collect_dispatch"],"name":[4],"type":["int"],"align":["right"]}],"data":[{"1":"0","2":"94","3":"2","4":"19"}],"options":{"columns":{"min":{},"max":[10],"total":[4]},"rows":{"min":[10],"max":[10],"total":[1]},"pages":{}}}
+  </script>
+</div>
+<!-- rnb-frame-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <!-- rnb-text-end -->
