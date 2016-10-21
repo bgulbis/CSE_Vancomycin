@@ -29,12 +29,33 @@ timing <- order_timing %>%
 
 details <- read_data("data/raw", "details") %>%
     as.order_info() %>%
-    anti_join(system_requests, by = "order.id") %>%
+    anti_join(system_requests, by = "order.id")
+
+request_times <- details %>%
     filter(detail.descr == "Requested Start Date/Time") %>%
     distinct(pie.id, order.id, detail.datetime)
 
+priority <- details %>%
+    filter(detail.descr %in% c("Collection Priority", "Frequency")) %>%
+    spread(detail.descr, detail) %>%
+    select(-detail.datetime) %>%
+    rename(priority = `Collection Priority`,
+           freq = Frequency)
+
+# if lab ordered as Early AM, then change request date/time to next day at 0300
+make_early <- function(x) {
+    dt <- x + days(1)
+    hour(dt) <- 3
+    minute(dt) <- 0
+    dt
+}
+
+req_times <- left_join(request_times, priority, by = c("pie.id", "order.id")) %>%
+    mutate(new_time = make_early(detail.datetime),
+           detail.datetime = if_else(freq == "Early AM", new_time, detail.datetime, new_time))
+
 orders <- left_join(timing, actions, by = c("pie.id", "order.id")) %>%
-    left_join(details, by = c("pie.id", "order.id")) %>%
+    left_join(req_times, by = c("pie.id", "order.id")) %>%
     mutate(order.action.datetime = coalesce(Ordered, Scheduled),
            cancel.action.datetime = coalesce(Canceled, Discontinued),
            collect_request_diff = as.numeric(difftime(Collected, request.datetime, units = "mins")),
