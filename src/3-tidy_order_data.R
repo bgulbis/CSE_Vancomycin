@@ -44,8 +44,26 @@ orders <- left_join(timing, actions, by = c("pie.id", "order.id")) %>%
                lead(Collected) <= detail.datetime + hours(6) &
                lag(Collected >= detail.datetime - hours(6)))
 
+requests <- orders %>%
+    filter(str_detect(order, "Request"),
+           is.na(Canceled),
+           is.na(Discontinued)) %>%
+    select(pie.id, req_id = order.id, order_req = order, req_time = detail.datetime)
+
+reqs_completed <- requests %>%
+    left_join(orders, by = "pie.id") %>%
+    filter(req_id != order.id,
+           Collected >= req_time - hours(2),
+           Collected <= req_time + hours(2)) %>%
+    mutate(completed = TRUE) %>%
+    select(pie.id, req_id, completed)
+
+orders_requests <- left_join(requests, reqs_completed, by = c("pie.id", "req_id")) %>%
+    mutate(completed = coalesce(completed, FALSE))
+
 orders_valid <- orders %>%
     filter(is.na(cancel.action.datetime),
            mult_levels != TRUE)
 
 saveRDS(orders_valid, "data/tidy/orders_valid.Rds")
+saveRDS(orders_valid, "data/tidy/orders_requests.Rds")
