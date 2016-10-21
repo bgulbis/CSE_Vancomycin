@@ -165,17 +165,14 @@ t.test(collect_detail_diff ~ shift, orders_lab)
 
 ## Labs Not Collected
 
+### Early AM
+
 ```{r}
 orders_lab %>%
-    ungroup() %>%
-    # filter(is.na(Collected)) %>%
-    select(Collected, Dispatched, Ordered, Scheduled) %>%
-    mutate(order_dispatch = !is.na(Ordered) & !is.na(Dispatched),
-           sched_dispatch = !is.na(Scheduled) & !is.na(Dispatched),
-           collect_without_dispatch = !is.na(Collected) & is.na(Dispatched),
-           not_collect_dispatch = is.na(Collected) & is.na(Dispatched)) %>%
-    select(order_dispatch:not_collect_dispatch) %>%
-    summarize_all("sum")
+    filter(freq == "Early AM" | is.na(freq)) %>%
+    mutate(drawn = !is.na(Collected)) %>%
+    group_by(drawn) %>%
+    count()
 ```
 
 ## Discoveries
@@ -184,4 +181,6 @@ orders_lab %>%
     - Unclear where this is generated from
     - Request detail was usually several days prior to the order date
 * Levels ordered without a frequency (mostly Early AM) show up with and Ordered date/time instead of a Scheduled date/time
-    - Those that are Ordered do not get Dispatched
+    - Those that show as Ordered do not get Dispatched
+        + Majority of these were never collected
+* Most levels not drawn seem to be either entered as a lab request or as Early AM / missing frequency
