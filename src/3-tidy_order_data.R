@@ -47,19 +47,19 @@ orders <- left_join(timing, actions, by = c("pie.id", "order.id")) %>%
 requests <- orders %>%
     filter(str_detect(order, "Request"),
            is.na(Canceled),
-           is.na(Discontinued)) %>%
-    select(pie.id, req_id = order.id, order_req = order, req_time = detail.datetime)
+           is.na(Discontinued))
 
 reqs_completed <- requests %>%
+    select(pie.id, req_id = order.id, order_req = order, req_time = detail.datetime) %>%
     left_join(orders, by = "pie.id") %>%
     filter(req_id != order.id,
            Collected >= req_time - hours(2),
            Collected <= req_time + hours(2)) %>%
-    mutate(completed = TRUE) %>%
-    select(pie.id, req_id, completed)
+    mutate(req_completed = TRUE) %>%
+    select(pie.id, order.id = req_id, req_completed)
 
-orders_requests <- left_join(requests, reqs_completed, by = c("pie.id", "req_id")) %>%
-    mutate(completed = coalesce(completed, FALSE))
+orders_requests <- left_join(requests, reqs_completed, by = c("pie.id", "order.id")) %>%
+    mutate(req_completed = coalesce(req_completed, FALSE))
 
 orders_valid <- orders %>%
     filter(is.na(cancel.action.datetime),
