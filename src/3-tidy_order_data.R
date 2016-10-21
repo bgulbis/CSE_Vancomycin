@@ -66,4 +66,4 @@ orders_valid <- orders %>%
            mult_levels != TRUE)
 
 saveRDS(orders_valid, "data/tidy/orders_valid.Rds")
-saveRDS(orders_valid, "data/tidy/orders_requests.Rds")
+saveRDS(orders_requests, "data/tidy/orders_requests.Rds")
