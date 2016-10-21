@@ -10,18 +10,26 @@ dirr::get_rds("data/tidy")
 order_actions <- read_data("data/raw", "action") %>%
     as.order_action()
 
+system_requests <- order_actions %>%
+    filter(action.type == "Order",
+           action.provider == "SYSTEM") %>%
+    distinct(pie.id, order.id)
+
 actions <- order_actions %>%
+    anti_join(system_requests, by = "order.id") %>%
     select(pie.id, order.id, order.status, action.datetime) %>%
     arrange(pie.id, order.id, action.datetime) %>%
     distinct(pie.id, order.id, order.status, .keep_all = TRUE) %>%
     spread(order.status, action.datetime)
 
 timing <- order_timing %>%
+    anti_join(system_requests, by = "order.id") %>%
     arrange(pie.id, order.id, order.datetime, review.datetime) %>%
     distinct(pie.id, order.id, .keep_all = TRUE)
 
 details <- read_data("data/raw", "details") %>%
     as.order_info() %>%
+    anti_join(system_requests, by = "order.id") %>%
     filter(detail.descr == "Requested Start Date/Time") %>%
     distinct(pie.id, order.id, detail.datetime)
 
