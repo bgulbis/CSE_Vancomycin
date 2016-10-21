@@ -16,28 +16,53 @@ dirr::get_rds("../data/tidy")
 ## Exploration
 
 ```{r}
-not_drawn <- orders_valid %>%
+orders_lab <- orders_valid %>%
     filter(request == FALSE) 
+
+total_orders <- sum(!orders_requests$completed, nrow(orders_lab))
+collected_orders <- sum(!is.na(orders_lab$Collected))
+uncollected_orders <- sum(is.na(orders_lab$Collected))
+uncollected_requests <- sum(!orders_requests$completed)
+total_uncollected <- uncollected_orders + uncollected_requests
+timely90 <- sum(orders_lab$timely90, na.rm = TRUE)
+timely60 <- sum(orders_lab$timely60, na.rm = TRUE)
+timely30 <- sum(orders_lab$timely30, na.rm = TRUE)
+untimely <- sum(!orders_lab$timely60, na.rm = TRUE)
 ```
 
-Number of levels ordered (excludes canclled labs and lab requests): `r nrow(not_drawn)`  
-Number of levels drawn: `r sum(!is.na(not_drawn$collect_detail_diff))`  
-Percent of levels drawn within 90 minutes of scheduled time: `r round(sum(not_drawn$timely90, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
-Percent of levels drawn within 60 minutes of scheduled time: `r round(sum(not_drawn$timely60, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
-Percent of levels drawn within 30 minutes of scheduled time: `r round(sum(not_drawn$timely30, na.rm = TRUE) / nrow(not_drawn) * 100, 2)`%  
-Percent of levels ordered but never drawn: `r round((nrow(not_drawn) - sum(!is.na(not_drawn$collect_detail_diff))) / nrow(not_drawn) * 100, 2)`%  
-  
-Number ordered by Vancomycin Request: `r sum(orders_valid$request)`  
+### Requests
+* Levels ordered by request: `r nrow(orders_requests)`  
+* Requests collected: `r sum(orders_requests$completed)` (`r round(sum(orders_requests$completed) / nrow(orders_requests) * 100, 2)`%)
+
+### Levels
+
+- Total orders placed (includes lab requests): `r total_orders`
+- Actual levels ordered: `r nrow(orders_lab)` (`r round(nrow(orders_lab) / total_orders * 100, 2)`%) 
+    + Includes requests that were converted to lab orders
+    + Excludes cancelled and duplicate orders
+- Levels drawn: `r sum(!is.na(orders_lab$Collected))` (`r round(sum(!is.na(orders_lab$Collected)) / total_orders * 100, 2)`%)  
+- Levels drawn within 90 minutes of scheduled time: `r timely90` (`r round(timely90 / collected_orders * 100, 2)`%)
+    + Percent of labs actually drawn
+- Levels drawn within 60 minutes of scheduled time: `r timely60` (`r round(timely60 / collected_orders * 100, 2)`%)
+- Levels drawn within 30 minutes of scheduled time: `r timely30` (`r round(timely30 / collected_orders * 100, 2)`%)
+
+### Assessment
+
+- Requests not collected: `r uncollected_requests` (`r round(uncollected_requests / nrow(orders_requests) * 100,2)`%)
+- Levels and requests not drawn: `r total_uncollected` / `r total_orders` (`r round(total_uncollected / total_orders * 100, 2)`%)
+- Inappropriately collected: `r total_uncollected + untimely` / `r total_orders` (`r round((total_uncollected + untimely) / total_orders * 100, 2)`%)
+    + Not drawn
+    + Greater than 60 minutes from scheduled time
 
 ### Timing
 
 Distribution of difference between desired draw time and actual draw time.
 
 ```{r}
-mn <- mean(not_drawn$collect_detail_diff, na.rm = TRUE)
-std <- sd(not_drawn$collect_detail_diff, na.rm = TRUE)
+mn <- mean(orders_lab$collect_detail_diff, na.rm = TRUE)
+std <- sd(orders_lab$collect_detail_diff, na.rm = TRUE)
 
-ggplot(not_drawn, aes(x = collect_detail_diff)) +
+ggplot(orders_lab, aes(x = collect_detail_diff)) +
     geom_density() +
     geom_vline(xintercept = mn, color = "blue") +
     geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
@@ -48,10 +73,10 @@ ggplot(not_drawn, aes(x = collect_detail_diff)) +
 Remove extreme outliers
 
 ```{r}
-q <- quantile(not_drawn$collect_detail_diff, na.rm = TRUE, probs = c(0.25, 0.5, 0.75))
-iqr <- IQR(not_drawn$collect_detail_diff, na.rm = TRUE)
+q <- quantile(orders_lab$collect_detail_diff, na.rm = TRUE, probs = c(0.25, 0.5, 0.75))
+iqr <- IQR(orders_lab$collect_detail_diff, na.rm = TRUE)
 
-no_outliers <- not_drawn %>%
+no_outliers <- orders_lab %>%
     filter(!is.na(collect_detail_diff),
            collect_detail_diff >= q[1] - (iqr * 3),
            collect_detail_diff <= (iqr * 3) + q[3])
@@ -83,7 +108,7 @@ orders_valid %>%
 Among levels not drawn, how far in advance of due time was level ordered
 
 ```{r}
-not_drawn %>%
+orders_lab %>%
     filter(!is.na(sched_diff),
            is.na(collect_detail_diff)) %>%
     ggplot(aes(x = shift, y = sched_diff)) +
@@ -94,7 +119,7 @@ not_drawn %>%
 ## By Shift
 
 ```{r}
-ggplot(not_drawn, aes(x = shift)) +
+ggplot(orders_lab, aes(x = shift)) +
     geom_bar() +
     ggtitle("Number of Levels per Shift")
 ```
@@ -102,7 +127,7 @@ ggplot(not_drawn, aes(x = shift)) +
 Distribution by shift
 
 ```{r}
-not_drawn %>%
+orders_lab %>%
     filter(!is.na(shift)) %>%
     ggplot(aes(x = collect_detail_diff)) +
     geom_density() +
@@ -114,32 +139,32 @@ not_drawn %>%
 Time (in minutes) between when levels was ordered to be drawn and when it was actually drawn.
 
 ```{r}
-summary(as.numeric(not_drawn$collect_detail_diff))
+summary(as.numeric(orders_lab$collect_detail_diff))
 ```
 
 ### Day Shift
 ```{r}
-summary(as.numeric(not_drawn[not_drawn$shift == "day", ]$collect_detail_diff))
+summary(as.numeric(orders_lab[orders_lab$shift == "day", ]$collect_detail_diff))
 ```
 
 ### Night Shift
 ```{r}
-summary(as.numeric(not_drawn[not_drawn$shift == "night", ]$collect_detail_diff))
+summary(as.numeric(orders_lab[orders_lab$shift == "night", ]$collect_detail_diff))
 ```
 
 ```{r}
-ggplot(not_drawn, aes(x = shift, y = as.numeric(collect_detail_diff))) +
+ggplot(orders_lab, aes(x = shift, y = as.numeric(collect_detail_diff))) +
     geom_boxplot()
 ```
 
 ```{r}
-t.test(collect_detail_diff ~ shift, not_drawn)
+t.test(collect_detail_diff ~ shift, orders_lab)
 ```
 
 ## Labs Not Collected
 
 ```{r}
-not_drawn %>%
+orders_lab %>%
     ungroup() %>%
     # filter(is.na(Collected)) %>%
     select(Collected, Dispatched, Ordered, Scheduled) %>%
