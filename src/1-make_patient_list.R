@@ -5,7 +5,7 @@
 library(tidyverse)
 library(edwr)
 
-pts <- read_data("data/raw", "patients_cse_vanc_hvi") %>%
+pts <- read_data("data/raw", "patients") %>%
     as.patients() %>%
     arrange(pie.id)
 
