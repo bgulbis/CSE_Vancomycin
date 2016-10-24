@@ -3,9 +3,11 @@
 library(tidyverse)
 library(edwr)
 
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFICU", "HH HFIMU", "HH CCU", "HVI CIMU")
+
 timing <- read_data("data/raw", "timing") %>%
     as.order_timing() %>%
-    filter(order.unit == "HH CVICU")
+    filter(order.unit %in% hvi)
 
 print(concat_encounters(unique(timing$order.id)))
 
