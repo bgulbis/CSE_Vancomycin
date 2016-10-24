@@ -155,9 +155,18 @@ summary(as.numeric(orders_lab[orders_lab$shift == "night", ]$collect_detail_diff
 ```
 
 ```{r}
-ggplot(orders_lab, aes(x = shift, y = as.numeric(collect_detail_diff))) +
+g <- ggplot(orders_lab, aes(x = shift, y = as.numeric(collect_detail_diff))) +
     geom_boxplot()
+g
 ```
+
+Zoom in on data
+
+```{r}
+g +
+    coord_cartesian(ylim = c(-250, 250))
+```
+
 
 ```{r}
 t.test(collect_detail_diff ~ shift, orders_lab)
