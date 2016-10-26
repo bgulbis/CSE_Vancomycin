@@ -3,7 +3,7 @@
 library(tidyverse)
 library(edwr)
 
-hvi <- c("HH CVICU", "HH CVIMU", "HH HFICU", "HH HFIMU", "HH 5HVI", "HH CCU", "HVI CIMU")
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
 
 timing <- read_data("data/raw", "timing") %>%
     as.order_timing() %>%

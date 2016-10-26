@@ -94,5 +94,16 @@ orders_valid <- orders %>%
     filter(is.na(cancel.action.datetime),
            mult_levels != TRUE)
 
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+
+levels <- read_data("data/raw", "vanc_level") %>%
+    as.labs() %>%
+    rename(order.id = `Clinical Event Order ID`,
+           event.unit = `Nurse Unit of Clinical Event`) %>%
+    filter(event.unit %in% hvi)
+
+df <- full_join(levels, orders_valid, by = c("pie.id", "order.id"))
+
+
 saveRDS(orders_valid, "data/tidy/orders_valid.Rds")
 saveRDS(orders_requests, "data/tidy/orders_requests.Rds")
