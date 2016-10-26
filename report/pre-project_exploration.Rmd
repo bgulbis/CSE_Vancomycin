@@ -19,6 +19,10 @@ dirr::get_rds("../data/tidy")
 orders_lab <- orders_valid %>%
     filter(request == FALSE) 
 
+df <- orders_lab %>%
+    group_by(order.unit) %>%
+    summarize_at(c("timely90", "timely60", "timely30"), funs(sum), na.rm = TRUE)
+
 total_orders <- sum(!orders_requests$req_completed, nrow(orders_lab))
 collected_orders <- sum(!is.na(orders_lab$Collected))
 uncollected_orders <- sum(is.na(orders_lab$Collected))
