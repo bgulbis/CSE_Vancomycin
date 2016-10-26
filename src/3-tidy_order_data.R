@@ -33,7 +33,9 @@ details <- read_data("data/raw", "details") %>%
 
 request_times <- details %>%
     filter(detail.descr == "Requested Start Date/Time") %>%
-    distinct(pie.id, order.id, detail.datetime)
+    arrange(pie.id, desc(detail.datetime)) %>%
+    select(pie.id, order.id, detail.datetime) %>%
+    distinct(pie.id, order.id, .keep_all = TRUE)
 
 priority <- details %>%
     filter(detail.descr %in% c("Collection Priority", "Frequency")) %>%
@@ -103,7 +105,6 @@ levels <- read_data("data/raw", "vanc_level") %>%
     filter(event.unit %in% hvi)
 
 df <- full_join(levels, orders_valid, by = c("pie.id", "order.id"))
-
 
 saveRDS(orders_valid, "data/tidy/orders_valid.Rds")
 saveRDS(orders_requests, "data/tidy/orders_requests.Rds")
