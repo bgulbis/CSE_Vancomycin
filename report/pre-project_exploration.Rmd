@@ -9,6 +9,7 @@ output:
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(lubridate)
+library(tableone)
 
 dirr::get_rds("../data/tidy")
 ```
@@ -33,6 +34,14 @@ timely60 <- sum(orders_lab$timely60, na.rm = TRUE)
 timely30 <- sum(orders_lab$timely30, na.rm = TRUE)
 untimely <- sum(!orders_lab$timely60, na.rm = TRUE)
 ```
+
+```{r results='asis'}
+vars <- c("timely90", "timely60", "timely30")
+tbl <- CreateTableOne(vars, "order.unit", orders_lab)
+ptbl <- print(tbl, printToggle = FALSE)
+knitr::kable(ptbl)
+```
+
 
 ### Requests
 * Levels ordered by request: `r nrow(orders_requests)`  
