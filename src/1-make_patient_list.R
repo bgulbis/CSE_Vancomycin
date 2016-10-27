@@ -9,7 +9,7 @@ pts <- read_data("data/raw", "patients") %>%
     as.patients() %>%
     arrange(pie.id)
 
-print(concat_encounters(pts$pie.id))
+id <- concat_encounters(pts$pie.id)
 
 # use results to run EDW queries:
 #   * Orders - Timing - Prompt

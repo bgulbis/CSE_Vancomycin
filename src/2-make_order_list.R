@@ -3,13 +3,13 @@
 library(tidyverse)
 library(edwr)
 
-hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+# hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
 
 timing <- read_data("data/raw", "timing") %>%
-    as.order_timing() %>%
-    filter(order.unit %in% hvi)
+    as.order_timing()
+    # filter(order.unit %in% hvi)
 
-print(concat_encounters(unique(timing$order.id), 950))
+id <- concat_encounters(unique(timing$order.id), 950)
 
 # run EDW queries:
 #   * Orders - Actions - Source Order ID Prompt
