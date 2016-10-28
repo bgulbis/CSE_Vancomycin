@@ -12,6 +12,7 @@ pts <- read_data("data/raw", "patients") %>%
 id <- concat_encounters(pts$pie.id)
 
 # use results to run EDW queries:
-#   * Orders - Timing - Prompt
+#   * Orders - Timing - Prompt without Review
+#       - Order Catalog Mnemonic: Vancomycin Level; Vancomycin Level Peak; Vancomycin Level Peak Request; Vancomycin Level Request; Vancomycin Level Trough; Vancomycin Level Trough Request
 #   * Clinical Events - Prompt
-#       - Clinical Event: 	Vanco Lvl; Vanco Pk; Vanco Tr; Vancomycin Level; Vancomycin Level Trough; Vancomycin Level Peak; Vancomycin Trough Level
+#       - Clinical Event: 	Vanco Lvl; Vanco Pk; Vanco Tr
