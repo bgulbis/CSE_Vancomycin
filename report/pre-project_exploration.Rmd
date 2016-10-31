@@ -8,10 +8,17 @@ output:
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(stringr)
 library(lubridate)
 library(tableone)
 
 dirr::get_rds("../data/tidy")
+
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+
+orders_levels <- full_join(levels, orders_valid, by = c("pie.id", "order.id")) %>%
+    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) 
+
 ```
 
 ## Exploration
@@ -36,9 +43,10 @@ untimely <- sum(!orders_lab$timely60, na.rm = TRUE)
 ```
 
 ```{r results='asis'}
-vars <- c("timely90", "timely60", "timely30")
-tbl <- CreateTableOne(vars, "order.unit", orders_lab)
+vars <- c("timely90", "timely60", "timely30", "collect_detail_diff", "freq", "priority", "request", "shift")
+tbl <- CreateTableOne(vars, "event.unit", orders_levels)
 ptbl <- print(tbl, printToggle = FALSE)
+rownames(ptbl) <- str_replace_all(rownames(ptbl), "   ", "- ")
 knitr::kable(ptbl)
 ```
 
