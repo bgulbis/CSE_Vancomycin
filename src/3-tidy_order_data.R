@@ -22,9 +22,10 @@ actions <- order_actions %>%
     distinct(pie.id, order.id, order.status, .keep_all = TRUE) %>%
     spread(order.status, action.datetime)
 
-timing <- order_timing %>%
+timing <- read_data("data/raw", "timing") %>%
+    as.order_timing() %>%
     anti_join(system_requests, by = "order.id") %>%
-    arrange(pie.id, order.id, order.datetime, review.datetime) %>%
+    arrange(pie.id, order.id, order.datetime) %>%
     distinct(pie.id, order.id, .keep_all = TRUE)
 
 details <- read_data("data/raw", "details") %>%
@@ -42,35 +43,42 @@ priority <- details %>%
     spread(detail.descr, detail) %>%
     select(-detail.datetime) %>%
     rename(priority = `Collection Priority`,
-           freq = Frequency)
+           freq = Frequency) %>%
+    filter(is.na(freq) | freq != "Early AM")
 
 # if lab ordered as Early AM, then change request date/time to next day at 0300
-make_early <- function(x) {
-    dt <- x + days(1)
-    hour(dt) <- 3
-    minute(dt) <- 0
-    dt
-}
+# make_early <- function(x) {
+#     dt <- x + days(1)
+#     hour(dt) <- 3
+#     minute(dt) <- 0
+#     dt
+# }
+#
+# req_times <- left_join(request_times, priority, by = c("pie.id", "order.id")) %>%
+#     mutate(new_time = make_early(detail.datetime),
+#            detail.datetime = if_else(freq == "Early AM", new_time, detail.datetime, new_time))
 
-req_times <- left_join(request_times, priority, by = c("pie.id", "order.id")) %>%
-    mutate(new_time = make_early(detail.datetime),
-           detail.datetime = if_else(freq == "Early AM", new_time, detail.datetime, new_time))
+# miss <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
+#     filter(is.na(order.unit))
 
-orders <- left_join(timing, actions, by = c("pie.id", "order.id")) %>%
-    left_join(req_times, by = c("pie.id", "order.id")) %>%
-    mutate(order.action.datetime = coalesce(Ordered, Scheduled),
-           cancel.action.datetime = coalesce(Canceled, Discontinued),
-           collect_request_diff = as.numeric(difftime(Collected, request.datetime, units = "mins")),
-           collect_detail_diff = as.numeric(difftime(Collected, detail.datetime, units = "mins")),
-           request_diff = request.datetime == detail.datetime,
+# id <- concat_encounters(miss$order.id)
+
+orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
+    left_join(request_times, by = c("pie.id", "order.id")) %>%
+    inner_join(priority, by = c("pie.id", "order.id")) %>%
+    filter(is.na(discontinue.datetime),
+           is.na(cancel.datetime),
+           is.na(Canceled),
+           is.na(Discontinued)) %>%
+    mutate(collect_detail_diff = as.numeric(difftime(Collected, detail.datetime, units = "mins")),
            request = str_detect(order, "Request"),
            timely90 = abs(collect_detail_diff) <= 90,
            timely60 = abs(collect_detail_diff) <= 60,
            timely30 = abs(collect_detail_diff) <= 30,
-           sched_diff = as.numeric(difftime(detail.datetime, order.action.datetime, units = "hours")),
+           sched_diff = as.numeric(difftime(detail.datetime, Scheduled, units = "hours")),
            shift = if_else(hour(detail.datetime) >= 7 & hour(detail.datetime) < 19, "day", "night")) %>%
     group_by(pie.id) %>%
-    arrange(pie.id, detail.datetime, order.action.datetime) %>%
+    arrange(pie.id, detail.datetime) %>%
     mutate(mult_levels = is.na(Collected) &
                lead(Collected) <= detail.datetime + hours(6) &
                lag(Collected >= detail.datetime - hours(6)))
@@ -96,15 +104,13 @@ orders_valid <- orders %>%
     filter(is.na(cancel.action.datetime),
            mult_levels != TRUE)
 
-hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+# df <- full_join(levels, orders_valid, by = c("pie.id", "order.id"))
+#
+# missing_orders <- df %>%
+#     filter(is.na(order.unit))
+#
+# id <- concat_encounters(missing_orders$order.id)
 
-levels <- read_data("data/raw", "vanc_level") %>%
-    as.labs() %>%
-    rename(order.id = `Clinical Event Order ID`,
-           event.unit = `Nurse Unit of Clinical Event`) %>%
-    filter(event.unit %in% hvi)
-
-df <- full_join(levels, orders_valid, by = c("pie.id", "order.id"))
-
-saveRDS(orders_valid, "data/tidy/orders_valid.Rds")
+saveRDS(orders, "data/tidy/orders_valid.Rds")
 saveRDS(orders_requests, "data/tidy/orders_requests.Rds")
+saveRDS(levels, "data/tidy/levels.Rds")

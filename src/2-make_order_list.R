@@ -3,9 +3,7 @@
 library(tidyverse)
 library(edwr)
 
-# hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
-
-timing <- read_data("data/raw", "timing") %>%
+timing <- read_data("data/raw", "^timing") %>%
     as.order_timing()
     # filter(order.unit %in% hvi)
 
@@ -18,7 +16,7 @@ vanc_levels <- read_data("data/raw", "vanc_level") %>%
 orders <- bind_rows(timing["order.id"], vanc_levels["order.id"]) %>%
     distinct()
 
-id <- concat_encounters(orders$order.id, 950)
+id <- concat_encounters(orders$order.id)
 
 # run EDW queries:
 #   * Orders - Actions - Source Order ID Prompt
