@@ -22,6 +22,12 @@ actions <- order_actions %>%
     distinct(pie.id, order.id, order.status, .keep_all = TRUE) %>%
     spread(order.status, action.datetime)
 
+order_comm <- order_actions %>%
+    anti_join(system_requests, by = "order.id") %>%
+    select(pie.id, order.id, action.comm) %>%
+    filter(!is.na(action.comm)) %>%
+    distinct()
+
 timing <- read_data("data/raw", "timing") %>%
     as.order_timing() %>%
     anti_join(system_requests, by = "order.id") %>%
@@ -65,7 +71,8 @@ priority <- details %>%
 
 orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
     left_join(request_times, by = c("pie.id", "order.id")) %>%
-    inner_join(priority, by = c("pie.id", "order.id")) %>%
+    left_join(priority, by = c("pie.id", "order.id")) %>%
+    left_join(order_comm, by = c("pie.id", "order.id")) %>%
     filter(is.na(discontinue.datetime),
            is.na(cancel.datetime),
            is.na(Canceled),
@@ -83,10 +90,19 @@ orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
                lead(Collected) <= detail.datetime + hours(6) &
                lag(Collected >= detail.datetime - hours(6)))
 
+
+
 requests <- orders %>%
-    filter(str_detect(order, "Request"),
-           is.na(Canceled),
-           is.na(Discontinued))
+    # select(pie.id:order.datetime, action.comm, request, Canceled:detail.datetime) %>%
+    filter(request == TRUE) %>%
+    arrange(pie.id, order.datetime)
+
+not_completed <- orders %>%
+    filter(request == FALSE,
+           is.na(Collected))
+    # filter(request == TRUE,
+    #        is.na(Canceled),
+    #        is.na(Discontinued))
 
 reqs_completed <- requests %>%
     select(pie.id, req_id = order.id, order_req = order, req_time = detail.datetime) %>%
@@ -97,12 +113,14 @@ reqs_completed <- requests %>%
     mutate(req_completed = TRUE) %>%
     select(pie.id, order.id = req_id, req_completed)
 
-orders_requests <- left_join(requests, reqs_completed, by = c("pie.id", "order.id")) %>%
-    mutate(req_completed = coalesce(req_completed, FALSE))
+orders_requests <- requests
+    # left_join(requests, reqs_completed, by = c("pie.id", "order.id")) %>%
+    # mutate(req_completed = coalesce(req_completed, FALSE))
 
 orders_valid <- orders %>%
-    filter(is.na(cancel.action.datetime),
-           mult_levels != TRUE)
+    # filter(is.na(cancel.action.datetime),
+           # mult_levels != TRUE)
+    filter(mult_levels != TRUE)
 
 # df <- full_join(levels, orders_valid, by = c("pie.id", "order.id"))
 #
