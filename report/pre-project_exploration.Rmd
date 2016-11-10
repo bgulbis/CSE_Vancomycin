@@ -1,16 +1,21 @@
 ---
-title: "CS&E Pre-Project Exploration"
+title: "Appropriate Vancomycin Level Collection in CVICU"
+subtitle: "CS&E Project"
+author: "Brian Gulbis, PharmD, BCPS"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: 
-    html_notebook:
-        code_folding: hide
+output:
+  html_notebook:
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
 library(tidyverse)
 library(stringr)
 library(lubridate)
 library(tableone)
+library(pander)
 
 dirr::get_rds("../data/tidy")
 
@@ -68,7 +73,7 @@ totals <- bind_rows(totals_units, totals_hvi) %>%
 
 ## Result Summary
 
-```{r}
+```{r, fig.cap="Appropriately Collected Vancomycin Levels"}
 df <- totals %>%
     filter(event.unit != "HVI")
 
@@ -80,11 +85,12 @@ ggplot(df, aes(x = event.unit, y = percent_appropriate)) +
     ggtitle("Appropriately Collected Vancomycin Levels") +
     xlab("Unit") +
     ylab("Percent of Levels")
+    # theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
 ```
 
 * Blue line represents HVI average
 
-```{r}
+```{r, fig.cap="Vancomycin Levels Ordered But Not Collected"}
 df <- totals %>%
     filter(event.unit != "HVI")
 
@@ -95,13 +101,47 @@ ggplot(df, aes(x = event.unit, y = percent_not_done)) +
     geom_hline(yintercept = hvi_avg, color = "blue") +
     ggtitle("Vancomycin Levels Ordered But Not Collected") +
     xlab("Unit") +
-    ylab("Percent of Levels")
+    ylab("Percent of Levels") 
+    # theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+```
+
+```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection"}
+ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
+    geom_boxplot() +
+    # ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
+    coord_cartesian(ylim = c(-250, 250))
 ```
 
 #### Raw Data
 
-```{r}
-knitr::kable(totals)
+```{r, results='asis'}
+vars <- c("not_collected", "timely90", "timely60", "timely30", "collect_detail_diff", "priority", "shift")
+tbl_hvi <- CreateTableOne(vars, data = orders_levels)
+tbl_units <- CreateTableOne(vars, "location", data = orders_levels)
+ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
+ptbl_units <- print(tbl_units, printToggle = FALSE)
+rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
+total <- cbind(ptbl_hvi, ptbl_units)
+knitr::kable(total[, 1:9], caption = "Raw Data for HVI and By Unit")
+```
+
+### Orders Placed by Vancomycin Request
+
+```{r, results='asis'}
+df <- orders_requests %>%
+    filter(order.unit %in% hvi) %>%
+    mutate(month = floor_date(detail.datetime, unit = "month"),
+           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
+           hour = hour(detail.datetime)) 
+
+vars <- c("shift")
+tbl_hvi <- CreateTableOne(vars, data = df)
+tbl_units <- CreateTableOne(vars, "order.unit", data = df)
+ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
+ptbl_units <- print(tbl_units, printToggle = FALSE)
+rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
+total <- cbind(ptbl_hvi, ptbl_units)
+knitr::kable(total[, 1:9], caption = "Orders by Vancomycin Request")
 ```
 
 ## Exploration of CVICU Levels
@@ -128,6 +168,8 @@ ptbl <- print(tbl, printToggle = FALSE)
 knitr::kable(ptbl[, c(2:7, 9)], caption = "Vancomycin Levels in CVICU by Month")
 ```
 
+\pagebreak
+
 ### By Day of Week
 
 ```{r}
@@ -139,103 +181,24 @@ knitr::kable(ptbl[, 1:8], caption = "Vancomycin Levels in CVICU by Day of Week")
 
 ### By Hour of Day
 
-```{r}
+```{r, fig.cap="Appropriately vs. Inappriately Collected Levels by Hour of Day"}
 ggplot(cvicu, aes(x = hour)) +
     geom_bar(aes(fill = appropriate)) +
     ggtitle("Appropriately vs. Inappriately Collected Levels by Hour of Day")
 ```
 
 
-```{r}
+```{r, fig.cap="Collected vs. Un-Collected Levels by Hour of Day"}
 ggplot(cvicu, aes(x = hour)) +
     geom_bar(aes(fill = not_collected)) +
     ggtitle("Collected vs. Un-Collected Levels by Hour of Day")
 ```
 
-
-```{r}
-orders_lab <- orders_valid %>%
-    filter(request == FALSE) 
-
-df <- orders_lab %>%
-    group_by(order.unit) %>%
-    summarize_at(c("timely90", "timely60", "timely30"), funs(sum), na.rm = TRUE)
-
-```
-
-```{r results='asis'}
-vars <- c("not_collected", "timely90", "timely60", "timely30", "collect_detail_diff", "freq", "priority", "request", "shift")
-tbl_hvi <- CreateTableOne(vars, data = orders_levels)
-tbl_units <- CreateTableOne(vars, "location", orders_levels)
-ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
-ptbl_units <- print(tbl_units, printToggle = FALSE)
-rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
-total <- cbind(ptbl_hvi, ptbl_units)
-knitr::kable(total)
-```
-
-### Appropriately Collected Levels
-
-#### HVI
-```{r}
-g <- ggplot(orders_levels, aes(x = timely60)) +
-    geom_bar() +
-    xlab("Appropriately Collected")
-
-g
-```
-
-#### By Unit
-```{r}
-g +
-    facet_wrap(~ location)
-```
-
-### Ordered But Not Collected
-
-#### HVI
-```{r}
-g <- ggplot(orders_levels, aes(x = not_collected)) +
-    geom_bar(aes(y = (..count..)/sum(..count..))) +
-    xlab("Not Collected") +
-    ylab("Percent of Orders")
-
-g
-```
-
-#### By Unit
-```{r}
-g +
-    facet_wrap(~ location)
-```
-
-
-### Requests
-
-```{r}
-df <- orders_requests %>%
-    filter(order.unit %in% hvi) %>%
-    mutate(month = floor_date(detail.datetime, unit = "month"),
-           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
-           hour = hour(detail.datetime)) 
-
-vars <- c("shift", "month", "day")
-tbl_hvi <- CreateTableOne(vars, data = df)
-tbl_units <- CreateTableOne(vars, "order.unit", df)
-ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
-ptbl_units <- print(tbl_units, printToggle = FALSE)
-rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
-total <- cbind(ptbl_hvi, ptbl_units)
-knitr::kable(total)
-```
-
-
-
 ### Timing
 
 Distribution of difference between desired draw time and actual draw time.
 
-```{r}
+```{r, fig.cap="Distribution of Time Difference Between Desired and Actual Collection"}
 mn <- mean(cvicu$collect_detail_diff, na.rm = TRUE)
 std <- sd(cvicu$collect_detail_diff, na.rm = TRUE)
 
@@ -243,7 +206,8 @@ ggplot(cvicu, aes(x = collect_detail_diff)) +
     geom_density() +
     geom_vline(xintercept = mn, color = "blue") +
     geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
-    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed")
+    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed") +
+    ggtitle("Distribution of Time Difference")
 # coord_cartesian(xlim = c(-200, 200))
 ```
 
@@ -253,7 +217,7 @@ ggplot(cvicu, aes(x = collect_detail_diff)) +
 
 #### Remove extreme outliers
 
-```{r}
+```{r, fig.cap="Distribution of Time Difference Without Outliers"}
 q <- quantile(cvicu$collect_detail_diff, na.rm = TRUE, probs = c(0.25, 0.5, 0.75))
 iqr <- IQR(cvicu$collect_detail_diff, na.rm = TRUE)
 
@@ -269,12 +233,13 @@ ggplot(no_outliers, aes(x = collect_detail_diff)) +
     geom_density() +
     geom_vline(xintercept = mn, color = "blue") +
     geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
-    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed")
+    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed") +
+    ggtitle("Distribution of Time Difference Without Outliers")
 ```
 
 Relationship between how far in advance the level was ordered, and how close to desired draw time the level was actually drawn.
 
-```{r}
+```{r, fig.cap="Time from order to draw vs. time to actual draw"}
 cvicu %>%
     filter(!is.na(sched_diff),
            !is.na(collect_detail_diff)) %>%
@@ -282,108 +247,28 @@ cvicu %>%
     geom_point(aes(color = shift), alpha = 0.6) +
     scale_x_continuous(breaks = seq(0, 96, 12)) +
     ggtitle("Time from order to draw vs. time to actual draw") +
-    xlab("Time from ordering to desired draw (hours)") +
-    ylab("Time from desired draw to actual draw (minutes)")
+    xlab("Ordering to desired draw (hours)") +
+    ylab("Desired draw to actual draw (minutes)")
 ```
 
-Among levels not drawn, how far in advance of due time was level ordered
+### Time Differences
 
-#### HVI
-```{r}
-df <- orders_levels %>%
-    filter(is.na(Collected),
-           is.na(lab.result)) %>%
-    mutate(sched_diff = as.numeric(difftime(detail.datetime, order.datetime, units = "hours"))) %>%
-    ggplot(aes(x = shift, y = sched_diff)) +
+Time (in minutes) between when levels was scheduled to be drawn and when it was actually drawn.
+
+#### By Shift
+```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection"}
+ggplot(cvicu, aes(x = shift, y = as.numeric(collect_detail_diff))) +
     geom_boxplot() +
-    ylab("Time prior to collection (hours)")
-
-df
-```
-
-#### By Unit
-```{r}
-df +
-    facet_wrap(~ order.unit)
-```
-
-
-## By Shift
-
-#### HVI
-```{r}
-df <- ggplot(orders_levels, aes(x = shift)) +
-    geom_bar() +
-    ggtitle("Number of Levels per Shift")
-
-df
-```
-
-#### By Unit
-```{r}
-df +
-    facet_wrap(~ event.unit)
-```
-
-Distribution by shift
-
-```{r}
-orders_lab %>%
-    filter(!is.na(shift)) %>%
-    ggplot(aes(x = collect_detail_diff)) +
-    geom_density() +
-    facet_wrap(~ shift)
-```
-
-## Time Differences
-
-Time (in minutes) between when levels was ordered to be drawn and when it was actually drawn.
-
-#### HVI
-
-```{r}
-summary(as.numeric(orders_lab$collect_detail_diff))
-```
-
-### Day Shift
-```{r}
-summary(as.numeric(orders_lab[orders_lab$shift == "day", ]$collect_detail_diff))
-```
-
-### Night Shift
-```{r}
-summary(as.numeric(orders_lab[orders_lab$shift == "night", ]$collect_detail_diff))
-```
-
-```{r}
-g <- ggplot(orders_levels, aes(x = shift, y = as.numeric(collect_detail_diff))) +
-    geom_boxplot()
-g
-```
-
-Zoom in on data
-
-```{r}
-g +
+    ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
     coord_cartesian(ylim = c(-250, 250))
 ```
 
 
 ```{r}
-t.test(collect_detail_diff ~ shift, orders_lab)
+t.test(collect_detail_diff ~ shift, cvicu)
 ```
 
-#### By Unit
-
-```{r}
-g +
-    facet_wrap(~ event.unit) +
-    coord_cartesian(ylim = c(-250, 250))
-
-```
-
-
-## Discoveries
+## Notes
 
 * There are automatic vancomycin requests created by a Discern Advisor
     - Unclear where this is generated from
