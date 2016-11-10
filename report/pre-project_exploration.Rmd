@@ -18,7 +18,13 @@ hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI
 
 orders_levels <- full_join(levels, orders_valid, by = c("pie.id", "order.id")) %>%
     filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi),
-           request == FALSE) 
+           request == FALSE) %>%
+    mutate(not_collected = is.na(Collected),
+           location = coalesce(event.unit, order.unit),
+           month = floor_date(detail.datetime, unit = "month"),
+           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
+           hour = hour(detail.datetime)) %>%
+    dmap_at(c("timely90", "timely60", "timely30"), ~ coalesce(.x, FALSE))
 
 collected <- orders_levels %>%
     filter(!is.na(Collected)) %>%
@@ -39,10 +45,11 @@ requests <- orders_requests %>%
     rename(requests = n) %>%
     filter(order.unit %in% hvi)
 
+# percent_timely = timely / collected,
+           
 totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit")) %>%
     left_join(requests, by = c("event.unit" = "order.unit")) %>%
-    mutate(percent_timely = timely / collected,
-           total = collected + not_done,
+    mutate(total = collected + not_done,
            percent_not_done = not_done / total,
            percent_appropriate = timely / total)
 
@@ -50,22 +57,101 @@ totals_hvi <- totals_units %>%
     ungroup() %>%
     summarize_at(vars(collected, timely, not_done, requests, total), funs(sum), na.rm = TRUE) %>%
     mutate(event.unit = "HVI",
-           percent_timely = timely / collected,
            percent_not_done = not_done / total,
            percent_appropriate = timely / total) 
 
 totals <- bind_rows(totals_units, totals_hvi) %>%
-    select(event.unit, num_levels = total, everything())
+    select(event.unit, num_levels = total, everything()) %>%
+    filter(!is.na(event.unit))
 
 ```
 
 ## Result Summary
 
 ```{r}
+df <- totals %>%
+    filter(event.unit != "HVI")
+
+hvi_avg <- totals$percent_appropriate[totals$event.unit == "HVI"]
+
+ggplot(df, aes(x = event.unit, y = percent_appropriate)) +
+    geom_bar(stat = "identity") +
+    geom_hline(yintercept = hvi_avg, color = "blue") +
+    ggtitle("Appropriately Collected Vancomycin Levels") +
+    xlab("Unit") +
+    ylab("Percent of Levels")
+```
+
+* Blue line represents HVI average
+
+```{r}
+df <- totals %>%
+    filter(event.unit != "HVI")
+
+hvi_avg <- totals$percent_not_done[totals$event.unit == "HVI"]
+
+ggplot(df, aes(x = event.unit, y = percent_not_done)) +
+    geom_bar(stat = "identity") +
+    geom_hline(yintercept = hvi_avg, color = "blue") +
+    ggtitle("Vancomycin Levels Ordered But Not Collected") +
+    xlab("Unit") +
+    ylab("Percent of Levels")
+```
+
+#### Raw Data
+
+```{r}
 knitr::kable(totals)
 ```
 
-## Exploration
+## Exploration of CVICU Levels
+```{r}
+cvicu <- orders_levels %>%
+    filter(location == "HH CVICU") %>%
+    rename(appropriate = timely60)
+```
+
+### By Shift
+```{r}
+vars <- c("appropriate", "not_collected") 
+tbl <- CreateTableOne(vars, "shift", cvicu)
+ptbl <- print(tbl, printToggle = FALSE)
+knitr::kable(ptbl[, 1:3], caption = "Vancomycin Levels in CVICU by Nursing Shift")
+```
+
+### By Month
+
+```{r}
+vars <- c("appropriate", "not_collected", "shift") 
+tbl <- CreateTableOne(vars, "month", cvicu)
+ptbl <- print(tbl, printToggle = FALSE)
+knitr::kable(ptbl[, c(2:7, 9)], caption = "Vancomycin Levels in CVICU by Month")
+```
+
+### By Day of Week
+
+```{r}
+vars <- c("appropriate", "not_collected", "shift") 
+tbl <- CreateTableOne(vars, "day", cvicu)
+ptbl <- print(tbl, printToggle = FALSE)
+knitr::kable(ptbl[, 1:8], caption = "Vancomycin Levels in CVICU by Day of Week")
+```
+
+### By Hour of Day
+
+```{r}
+ggplot(cvicu, aes(x = hour)) +
+    geom_bar(aes(fill = appropriate)) +
+    ggtitle("Appropriately vs. Inappriately Collected Levels by Hour of Day")
+```
+
+
+```{r}
+ggplot(cvicu, aes(x = hour)) +
+    geom_bar(aes(fill = not_collected)) +
+    ggtitle("Collected vs. Un-Collected Levels by Hour of Day")
+```
+
 
 ```{r}
 orders_lab <- orders_valid %>%
@@ -78,9 +164,9 @@ df <- orders_lab %>%
 ```
 
 ```{r results='asis'}
-vars <- c("timely90", "timely60", "timely30", "collect_detail_diff", "freq", "priority", "request", "shift")
+vars <- c("not_collected", "timely90", "timely60", "timely30", "collect_detail_diff", "freq", "priority", "request", "shift")
 tbl_hvi <- CreateTableOne(vars, data = orders_levels)
-tbl_units <- CreateTableOne(vars, "event.unit", orders_levels)
+tbl_units <- CreateTableOne(vars, "location", orders_levels)
 ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
 ptbl_units <- print(tbl_units, printToggle = FALSE)
 rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
@@ -88,15 +174,72 @@ total <- cbind(ptbl_hvi, ptbl_units)
 knitr::kable(total)
 ```
 
+### Appropriately Collected Levels
+
+#### HVI
+```{r}
+g <- ggplot(orders_levels, aes(x = timely60)) +
+    geom_bar() +
+    xlab("Appropriately Collected")
+
+g
+```
+
+#### By Unit
+```{r}
+g +
+    facet_wrap(~ location)
+```
+
+### Ordered But Not Collected
+
+#### HVI
+```{r}
+g <- ggplot(orders_levels, aes(x = not_collected)) +
+    geom_bar(aes(y = (..count..)/sum(..count..))) +
+    xlab("Not Collected") +
+    ylab("Percent of Orders")
+
+g
+```
+
+#### By Unit
+```{r}
+g +
+    facet_wrap(~ location)
+```
+
+
+### Requests
+
+```{r}
+df <- orders_requests %>%
+    filter(order.unit %in% hvi) %>%
+    mutate(month = floor_date(detail.datetime, unit = "month"),
+           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
+           hour = hour(detail.datetime)) 
+
+vars <- c("shift", "month", "day")
+tbl_hvi <- CreateTableOne(vars, data = df)
+tbl_units <- CreateTableOne(vars, "order.unit", df)
+ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
+ptbl_units <- print(tbl_units, printToggle = FALSE)
+rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
+total <- cbind(ptbl_hvi, ptbl_units)
+knitr::kable(total)
+```
+
+
+
 ### Timing
 
 Distribution of difference between desired draw time and actual draw time.
 
 ```{r}
-mn <- mean(orders_lab$collect_detail_diff, na.rm = TRUE)
-std <- sd(orders_lab$collect_detail_diff, na.rm = TRUE)
+mn <- mean(cvicu$collect_detail_diff, na.rm = TRUE)
+std <- sd(cvicu$collect_detail_diff, na.rm = TRUE)
 
-ggplot(orders_lab, aes(x = collect_detail_diff)) +
+ggplot(cvicu, aes(x = collect_detail_diff)) +
     geom_density() +
     geom_vline(xintercept = mn, color = "blue") +
     geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
@@ -104,13 +247,17 @@ ggplot(orders_lab, aes(x = collect_detail_diff)) +
 # coord_cartesian(xlim = c(-200, 200))
 ```
 
-Remove extreme outliers
+* Blue line represents mean
+* Red lines represent standard deviation
+* Green dashed lines represent 60 minutes
+
+#### Remove extreme outliers
 
 ```{r}
-q <- quantile(orders_lab$collect_detail_diff, na.rm = TRUE, probs = c(0.25, 0.5, 0.75))
-iqr <- IQR(orders_lab$collect_detail_diff, na.rm = TRUE)
+q <- quantile(cvicu$collect_detail_diff, na.rm = TRUE, probs = c(0.25, 0.5, 0.75))
+iqr <- IQR(cvicu$collect_detail_diff, na.rm = TRUE)
 
-no_outliers <- orders_lab %>%
+no_outliers <- cvicu %>%
     filter(!is.na(collect_detail_diff),
            collect_detail_diff >= q[1] - (iqr * 3),
            collect_detail_diff <= (iqr * 3) + q[3])
@@ -128,7 +275,7 @@ ggplot(no_outliers, aes(x = collect_detail_diff)) +
 Relationship between how far in advance the level was ordered, and how close to desired draw time the level was actually drawn.
 
 ```{r}
-orders_valid %>%
+cvicu %>%
     filter(!is.na(sched_diff),
            !is.na(collect_detail_diff)) %>%
     ggplot(aes(x = as.numeric(sched_diff), y = as.numeric(collect_detail_diff))) +
