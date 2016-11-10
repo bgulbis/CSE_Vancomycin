@@ -87,7 +87,7 @@ ggplot(df, aes(x = event.unit, y = percent_appropriate)) +
     # ggtitle("Appropriately Collected Vancomycin Levels") +
     xlab("Unit") +
     ylab("Percent of Levels") +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 * Blue line represents HVI average
@@ -104,13 +104,14 @@ ggplot(df, aes(x = event.unit, y = percent_not_done)) +
     # ggtitle("Vancomycin Levels Ordered But Not Collected") +
     xlab("Unit") +
     ylab("Percent of Levels") + 
-    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 ```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection"}
 ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
     geom_boxplot() +
-    coord_cartesian(ylim = c(-250, 250))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    coord_cartesian(ylim = c(-250, 250)) 
 ```
 
 #### Raw Data
@@ -269,6 +270,7 @@ ggplot(cvicu, aes(x = shift, y = as.numeric(collect_detail_diff))) +
     coord_cartesian(ylim = c(-250, 250))
 ```
 
+\pagebreak
 
 ```{r}
 t.test(collect_detail_diff ~ shift, cvicu)
