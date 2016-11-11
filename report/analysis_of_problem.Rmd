@@ -4,8 +4,10 @@ subtitle: "CS&E Project"
 author: "Brian Gulbis, PharmD, BCPS"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
-  html_notebook:
-    code_folding: hide
+  pdf_document: 
+    fig_caption: yes
+    fig_height: 3
+    fig_width: 4
 ---
 
 ```{r setup, include=FALSE}
@@ -82,10 +84,10 @@ hvi_avg <- totals$percent_appropriate[totals$event.unit == "HVI"]
 ggplot(df, aes(x = event.unit, y = percent_appropriate)) +
     geom_bar(stat = "identity") +
     geom_hline(yintercept = hvi_avg, color = "blue") +
-    ggtitle("Appropriately Collected Vancomycin Levels") +
+    # ggtitle("Appropriately Collected Vancomycin Levels") +
     xlab("Unit") +
-    ylab("Percent of Levels")
-    # theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+    ylab("Percent of Levels") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 * Blue line represents HVI average
@@ -99,30 +101,35 @@ hvi_avg <- totals$percent_not_done[totals$event.unit == "HVI"]
 ggplot(df, aes(x = event.unit, y = percent_not_done)) +
     geom_bar(stat = "identity") +
     geom_hline(yintercept = hvi_avg, color = "blue") +
-    ggtitle("Vancomycin Levels Ordered But Not Collected") +
+    # ggtitle("Vancomycin Levels Ordered But Not Collected") +
     xlab("Unit") +
-    ylab("Percent of Levels") 
-    # theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+    ylab("Percent of Levels") + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 ```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection"}
 ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
     geom_boxplot() +
-    # ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
-    coord_cartesian(ylim = c(-250, 250))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    coord_cartesian(ylim = c(-250, 250)) 
 ```
 
 #### Raw Data
 
 ```{r, results='asis'}
+df <- orders_levels %>%
+    filter(location == "HH CVICU")
+
 vars <- c("not_collected", "timely90", "timely60", "timely30", "collect_detail_diff", "priority", "shift")
 tbl_hvi <- CreateTableOne(vars, data = orders_levels)
-tbl_units <- CreateTableOne(vars, "location", data = orders_levels)
+tbl_units <- CreateTableOne(vars, data = df)
 ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
 ptbl_units <- print(tbl_units, printToggle = FALSE)
 rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
+colnames(ptbl_hvi) <- "HVI"
+colnames(ptbl_units) <- "CVICU"
 total <- cbind(ptbl_hvi, ptbl_units)
-knitr::kable(total[, 1:9], caption = "Raw Data for HVI and By Unit")
+knitr::kable(total, caption = "Raw Data for HVI and CVICU")
 ```
 
 ### Orders Placed by Vancomycin Request
@@ -134,14 +141,19 @@ df <- orders_requests %>%
            day = wday(detail.datetime, label = TRUE, abbr = FALSE),
            hour = hour(detail.datetime)) 
 
+df2 <- df %>%
+    filter(order.unit == "HH CVICU")
+
 vars <- c("shift")
 tbl_hvi <- CreateTableOne(vars, data = df)
-tbl_units <- CreateTableOne(vars, "order.unit", data = df)
+tbl_units <- CreateTableOne(vars, data = df2)
 ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
 ptbl_units <- print(tbl_units, printToggle = FALSE)
 rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
+colnames(ptbl_hvi) <- "HVI"
+colnames(ptbl_units) <- "CVICU"
 total <- cbind(ptbl_hvi, ptbl_units)
-knitr::kable(total[, 1:9], caption = "Orders by Vancomycin Request")
+knitr::kable(total, caption = "Orders by Vancomycin Request")
 ```
 
 ## Exploration of CVICU Levels
@@ -168,8 +180,6 @@ ptbl <- print(tbl, printToggle = FALSE)
 knitr::kable(ptbl[, c(2:7, 9)], caption = "Vancomycin Levels in CVICU by Month")
 ```
 
-\pagebreak
-
 ### By Day of Week
 
 ```{r}
@@ -183,15 +193,15 @@ knitr::kable(ptbl[, 1:8], caption = "Vancomycin Levels in CVICU by Day of Week")
 
 ```{r, fig.cap="Appropriately vs. Inappriately Collected Levels by Hour of Day"}
 ggplot(cvicu, aes(x = hour)) +
-    geom_bar(aes(fill = appropriate)) +
-    ggtitle("Appropriately vs. Inappriately Collected Levels by Hour of Day")
+    geom_bar(aes(fill = appropriate)) 
+    # ggtitle("Appropriately vs. Inappriately Collected Levels by Hour of Day")
 ```
 
 
 ```{r, fig.cap="Collected vs. Un-Collected Levels by Hour of Day"}
 ggplot(cvicu, aes(x = hour)) +
-    geom_bar(aes(fill = not_collected)) +
-    ggtitle("Collected vs. Un-Collected Levels by Hour of Day")
+    geom_bar(aes(fill = not_collected)) 
+    # ggtitle("Collected vs. Un-Collected Levels by Hour of Day")
 ```
 
 ### Timing
@@ -206,8 +216,7 @@ ggplot(cvicu, aes(x = collect_detail_diff)) +
     geom_density() +
     geom_vline(xintercept = mn, color = "blue") +
     geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
-    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed") +
-    ggtitle("Distribution of Time Difference")
+    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed")
 # coord_cartesian(xlim = c(-200, 200))
 ```
 
@@ -233,8 +242,7 @@ ggplot(no_outliers, aes(x = collect_detail_diff)) +
     geom_density() +
     geom_vline(xintercept = mn, color = "blue") +
     geom_vline(xintercept = mn + c(1, -1) * std, color = "red") +
-    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed") +
-    ggtitle("Distribution of Time Difference Without Outliers")
+    geom_vline(xintercept = c(-60, 60), color = "darkgreen", linetype = "dashed")
 ```
 
 Relationship between how far in advance the level was ordered, and how close to desired draw time the level was actually drawn.
@@ -246,7 +254,7 @@ cvicu %>%
     ggplot(aes(x = as.numeric(sched_diff), y = as.numeric(collect_detail_diff))) +
     geom_point(aes(color = shift), alpha = 0.6) +
     scale_x_continuous(breaks = seq(0, 96, 12)) +
-    ggtitle("Time from order to draw vs. time to actual draw") +
+    # ggtitle("Time from order to draw vs. time to actual draw") +
     xlab("Ordering to desired draw (hours)") +
     ylab("Desired draw to actual draw (minutes)")
 ```
@@ -259,10 +267,10 @@ Time (in minutes) between when levels was scheduled to be drawn and when it was 
 ```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection"}
 ggplot(cvicu, aes(x = shift, y = as.numeric(collect_detail_diff))) +
     geom_boxplot() +
-    ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
     coord_cartesian(ylim = c(-250, 250))
 ```
 
+\pagebreak
 
 ```{r}
 t.test(collect_detail_diff ~ shift, cvicu)
