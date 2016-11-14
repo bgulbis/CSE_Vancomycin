@@ -168,8 +168,6 @@ ptbl <- print(tbl, printToggle = FALSE)
 knitr::kable(ptbl[, c(2:7, 9)], caption = "Vancomycin Levels in CVICU by Month")
 ```
 
-\pagebreak
-
 ### By Day of Week
 
 ```{r}
