@@ -82,6 +82,8 @@ orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
            timely90 = abs(collect_detail_diff) <= 90,
            timely60 = abs(collect_detail_diff) <= 60,
            timely30 = abs(collect_detail_diff) <= 30,
+           early = collect_detail_diff <= -120,
+           late = collect_detail_diff >= 240,
            sched_diff = as.numeric(difftime(detail.datetime, Scheduled, units = "hours")),
            shift = if_else(hour(detail.datetime) >= 7 & hour(detail.datetime) < 19, "day", "night")) %>%
     group_by(pie.id) %>%
