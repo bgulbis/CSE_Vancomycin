@@ -35,7 +35,9 @@ collected <- orders_levels %>%
     filter(!is.na(Collected)) %>%
     group_by(event.unit) %>%
     summarize(collected = n(),
-              timely = sum(timely60, na.rm = TRUE)) 
+              timely = sum(timely60, na.rm = TRUE),
+              early = sum(early, na.rm = TRUE),
+              late = sum(late, na.rm = TRUE)) 
 
 not_done <- orders_levels %>%
     filter(is.na(Collected),
@@ -60,7 +62,7 @@ totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit
 
 totals_hvi <- totals_units %>%
     ungroup() %>%
-    summarize_at(vars(collected, timely, not_done, requests, total), funs(sum), na.rm = TRUE) %>%
+    summarize_at(vars(collected, timely, early, late, not_done, requests, total), funs(sum), na.rm = TRUE) %>%
     mutate(event.unit = "HVI",
            percent_not_done = not_done / total,
            percent_appropriate = timely / total) 
@@ -102,7 +104,6 @@ ggplot(df, aes(x = event.unit, y = percent_not_done)) +
     ggtitle("Vancomycin Levels Ordered But Not Collected") +
     xlab("Unit") +
     ylab("Percent of Levels") 
-    # theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
 ```
 
 ```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection"}
@@ -165,10 +166,8 @@ knitr::kable(ptbl[, 1:3], caption = "Vancomycin Levels in CVICU by Nursing Shift
 vars <- c("appropriate", "not_collected", "shift") 
 tbl <- CreateTableOne(vars, "month", cvicu)
 ptbl <- print(tbl, printToggle = FALSE)
-knitr::kable(ptbl[, c(2:7, 9)], caption = "Vancomycin Levels in CVICU by Month")
+knitr::kable(ptbl[, c(2:10, 12)], caption = "Vancomycin Levels in CVICU by Month")
 ```
-
-\pagebreak
 
 ### By Day of Week
 
@@ -192,6 +191,14 @@ ggplot(cvicu, aes(x = hour)) +
 ggplot(cvicu, aes(x = hour)) +
     geom_bar(aes(fill = not_collected)) +
     ggtitle("Collected vs. Un-Collected Levels by Hour of Day")
+```
+
+
+```{r}
+ggplot(orders_levels, aes(x = hour)) +
+    geom_bar(aes(fill = not_collected)) +
+    ggtitle("Collected vs. Un-Collected Levels by Hour of Day") +
+    facet_wrap(~ location)
 ```
 
 ### Timing
