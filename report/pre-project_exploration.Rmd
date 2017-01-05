@@ -166,7 +166,7 @@ knitr::kable(ptbl[, 1:3], caption = "Vancomycin Levels in CVICU by Nursing Shift
 vars <- c("appropriate", "not_collected", "shift") 
 tbl <- CreateTableOne(vars, "month", cvicu)
 ptbl <- print(tbl, printToggle = FALSE)
-knitr::kable(ptbl[, c(2:7, 9)], caption = "Vancomycin Levels in CVICU by Month")
+knitr::kable(ptbl[, c(2:10, 12)], caption = "Vancomycin Levels in CVICU by Month")
 ```
 
 ### By Day of Week
