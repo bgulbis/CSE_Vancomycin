@@ -148,7 +148,9 @@ knitr::kable(total[, 1:9], caption = "Orders by Vancomycin Request")
 ## Exploration of CVICU Levels
 ```{r}
 cvicu <- orders_levels %>%
-    filter(location == "HH CVICU") %>%
+    filter(location == "HH CVICU",
+           month != "2016-03-01",
+           month != "2017-01-01") %>%
     rename(appropriate = timely60)
 ```
 
@@ -166,7 +168,26 @@ knitr::kable(ptbl[, 1:3], caption = "Vancomycin Levels in CVICU by Nursing Shift
 vars <- c("appropriate", "not_collected", "shift") 
 tbl <- CreateTableOne(vars, "month", cvicu)
 ptbl <- print(tbl, printToggle = FALSE)
-knitr::kable(ptbl[, c(2:10, 12)], caption = "Vancomycin Levels in CVICU by Month")
+knitr::kable(ptbl[, c(1:10)], caption = "Vancomycin Levels in CVICU by Month")
+```
+
+```{r}
+df <- cvicu %>%
+    group_by(month) %>%
+    summarize(appropriate = sum(appropriate) / n() * 100,
+              not_collected = sum(not_collected) / n() * 100)
+```
+
+```{r}
+ggplot(df, aes(x = month, y = appropriate)) +
+    geom_line() + 
+    geom_smooth(method = "lm")
+```
+
+```{r}
+ggplot(df, aes(x = month, y = not_collected)) +
+    geom_line() + 
+    geom_smooth(method = "lm")
 ```
 
 ### By Day of Week
