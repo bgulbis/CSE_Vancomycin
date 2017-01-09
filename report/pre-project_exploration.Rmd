@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 library(tidyverse)
 library(stringr)
+library(forcats)
 library(lubridate)
 library(tableone)
 library(pander)
@@ -118,17 +119,31 @@ ggplot(orders_levels, aes(x = priority, fill = not_collected)) +
     geom_bar()
 ```
 
-
 ```{r}
-ggplot(orders_levels, aes(x = not_collected, y = sched_diff)) +
+ggplot(orders_levels, aes(x = not_collected, y = order_detail_diff)) +
     geom_boxplot() +
     coord_cartesian(ylim = c(0, 100))
 ```
 
 ```{r}
-ggplot(orders_levels, aes(x = not_collected, y = order_detail_diff)) +
-    geom_boxplot() +
-    coord_cartesian(ylim = c(0, 100))
+orders_levels %>%
+    filter(not_collected) %>%
+    dmap_at("action.provider.role", fct_infreq) %>%
+    dmap_at("action.provider.role", fct_lump, n = 10) %>%
+    ggplot(aes(x = action.provider.role)) +
+    geom_bar() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+orders_levels %>%
+    filter(not_collected) %>%
+    # dmap_at("action.comm", as.factor) %>%
+    # dmap_at("action.comm", fct_inorder) %>%
+    # dmap_at("action.provider.role", fct_lump, n = 10) %>%
+    ggplot(aes(x = action.comm)) +
+    geom_bar() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 #### Raw Data
