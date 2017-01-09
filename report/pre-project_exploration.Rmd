@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 library(tidyverse)
 library(stringr)
+library(forcats)
 library(lubridate)
 library(tableone)
 library(pander)
@@ -21,10 +22,10 @@ dirr::get_rds("../data/tidy")
 
 hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
 
-orders_levels <- full_join(levels, orders_valid, by = c("pie.id", "order.id")) %>%
+orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
     filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi),
            request == FALSE) %>%
-    mutate(not_collected = is.na(Collected),
+    mutate(not_collected = is.na(Collected) & is.na(lab.result),
            location = coalesce(event.unit, order.unit),
            month = floor_date(detail.datetime, unit = "month"),
            day = wday(detail.datetime, label = TRUE, abbr = FALSE),
@@ -111,6 +112,38 @@ ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
     geom_boxplot() +
     # ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
     coord_cartesian(ylim = c(-250, 250))
+```
+
+```{r}
+ggplot(orders_levels, aes(x = priority, fill = not_collected)) +
+    geom_bar()
+```
+
+```{r}
+ggplot(orders_levels, aes(x = not_collected, y = order_detail_diff)) +
+    geom_boxplot() +
+    coord_cartesian(ylim = c(0, 100))
+```
+
+```{r}
+orders_levels %>%
+    filter(not_collected) %>%
+    dmap_at("action.provider.role", fct_infreq) %>%
+    dmap_at("action.provider.role", fct_lump, n = 10) %>%
+    ggplot(aes(x = action.provider.role)) +
+    geom_bar() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r}
+orders_levels %>%
+    filter(not_collected) %>%
+    # dmap_at("action.comm", as.factor) %>%
+    # dmap_at("action.comm", fct_inorder) %>%
+    # dmap_at("action.provider.role", fct_lump, n = 10) %>%
+    ggplot(aes(x = action.comm)) +
+    geom_bar() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
 #### Raw Data
@@ -222,6 +255,13 @@ ggplot(orders_levels, aes(x = hour)) +
     facet_wrap(~ location)
 ```
 
+```{r}
+cvicu_pm <- cvicu %>%
+    filter(hour >= 12,
+           hour <= 18)
+```
+
+
 ### Timing
 
 Distribution of difference between desired draw time and actual draw time.
@@ -277,6 +317,40 @@ cvicu %>%
     ggtitle("Time from order to draw vs. time to actual draw") +
     xlab("Ordering to desired draw (hours)") +
     ylab("Desired draw to actual draw (minutes)")
+```
+
+#### Subset of levels from 12pm - 6pm
+
+```{r, fig.cap="Time from order to draw vs. time to actual draw"}
+cvicu_pm %>%
+    filter(!is.na(sched_diff),
+           !is.na(collect_detail_diff)) %>%
+    ggplot(aes(x = as.numeric(sched_diff), y = as.numeric(collect_detail_diff))) +
+    geom_point(alpha = 0.6) +
+    scale_x_continuous(breaks = seq(0, 96, 12)) +
+    ggtitle("Time from order to draw vs. time to actual draw") +
+    xlab("Ordering to desired draw (hours)") +
+    ylab("Desired draw to actual draw (minutes)")
+```
+
+```{r}
+shifts <- cvicu_pm %>%
+    mutate(same_day = floor_date(order.datetime, unit = "day") == floor_date(detail.datetime, unit = "day"),
+           after7 = hour(order.datetime) >= 7,
+           same_shift = same_day & after7) %>%
+    group_by(not_collected) %>%
+    summarize(same_shift = sum(same_shift) / n())
+
+ggplot(shifts, aes(x = not_collected, y = same_shift)) +
+    geom_bar(stat = "identity")
+```
+
+```{r}
+cvicu_pm %>%
+    filter(!is.na(sched_diff)) %>%
+    ggplot(aes(x = not_collected, y = sched_diff)) +
+    geom_boxplot() +
+    coord_cartesian(ylim = c(0, 100))
 ```
 
 ### Time Differences

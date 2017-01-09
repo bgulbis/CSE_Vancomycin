@@ -15,12 +15,18 @@ system_requests <- order_actions %>%
            action.provider == "SYSTEM") %>%
     distinct(pie.id, order.id)
 
+order_by <- order_actions %>%
+    filter(action.type == "Order",
+           action.provider != "SYSTEM") %>%
+    select(order.id, action.provider.role)
+
 actions <- order_actions %>%
     anti_join(system_requests, by = "order.id") %>%
     select(pie.id, order.id, order.status, action.datetime) %>%
     arrange(pie.id, order.id, action.datetime) %>%
     distinct(pie.id, order.id, order.status, .keep_all = TRUE) %>%
-    spread(order.status, action.datetime)
+    spread(order.status, action.datetime) %>%
+    left_join(order_by, by = "order.id")
 
 order_comm <- order_actions %>%
     anti_join(system_requests, by = "order.id") %>%
@@ -78,6 +84,7 @@ orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
            is.na(Canceled),
            is.na(Discontinued)) %>%
     mutate(collect_detail_diff = as.numeric(difftime(Collected, detail.datetime, units = "mins")),
+           order_detail_diff = as.numeric(difftime(detail.datetime, order.datetime, units = "hours")),
            request = str_detect(order, "Request"),
            timely90 = abs(collect_detail_diff) <= 90,
            timely60 = abs(collect_detail_diff) <= 60,
@@ -91,8 +98,6 @@ orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
     mutate(mult_levels = is.na(Collected) &
                lead(Collected) <= detail.datetime + hours(6) &
                lag(Collected >= detail.datetime - hours(6)))
-
-
 
 requests <- orders %>%
     # select(pie.id:order.datetime, action.comm, request, Canceled:detail.datetime) %>%
@@ -133,4 +138,4 @@ orders_valid <- orders %>%
 
 saveRDS(orders, "data/tidy/orders_valid.Rds")
 saveRDS(orders_requests, "data/tidy/orders_requests.Rds")
-saveRDS(levels, "data/tidy/levels.Rds")
+# saveRDS(levels, "data/tidy/levels.Rds")
