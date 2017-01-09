@@ -78,6 +78,7 @@ orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
            is.na(Canceled),
            is.na(Discontinued)) %>%
     mutate(collect_detail_diff = as.numeric(difftime(Collected, detail.datetime, units = "mins")),
+           order_detail_diff = as.numeric(difftime(detail.datetime, order.datetime, units = "hours")),
            request = str_detect(order, "Request"),
            timely90 = abs(collect_detail_diff) <= 90,
            timely60 = abs(collect_detail_diff) <= 60,
@@ -91,8 +92,6 @@ orders <- full_join(timing, actions, by = c("pie.id", "order.id")) %>%
     mutate(mult_levels = is.na(Collected) &
                lead(Collected) <= detail.datetime + hours(6) &
                lag(Collected >= detail.datetime - hours(6)))
-
-
 
 requests <- orders %>%
     # select(pie.id:order.datetime, action.comm, request, Canceled:detail.datetime) %>%
@@ -133,4 +132,4 @@ orders_valid <- orders %>%
 
 saveRDS(orders, "data/tidy/orders_valid.Rds")
 saveRDS(orders_requests, "data/tidy/orders_requests.Rds")
-saveRDS(levels, "data/tidy/levels.Rds")
+# saveRDS(levels, "data/tidy/levels.Rds")
