@@ -15,12 +15,18 @@ system_requests <- order_actions %>%
            action.provider == "SYSTEM") %>%
     distinct(pie.id, order.id)
 
+order_by <- order_actions %>%
+    filter(action.type == "Order",
+           action.provider != "SYSTEM") %>%
+    select(order.id, action.provider.role)
+
 actions <- order_actions %>%
     anti_join(system_requests, by = "order.id") %>%
     select(pie.id, order.id, order.status, action.datetime) %>%
     arrange(pie.id, order.id, action.datetime) %>%
     distinct(pie.id, order.id, order.status, .keep_all = TRUE) %>%
-    spread(order.status, action.datetime)
+    spread(order.status, action.datetime) %>%
+    left_join(order_by, by = "order.id")
 
 order_comm <- order_actions %>%
     anti_join(system_requests, by = "order.id") %>%
