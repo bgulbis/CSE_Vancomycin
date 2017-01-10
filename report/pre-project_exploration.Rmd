@@ -23,8 +23,7 @@ dirr::get_rds("../data/tidy")
 hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
 
 orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
-    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi),
-           request == FALSE) %>%
+    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
     mutate(not_collected = is.na(Collected) & is.na(lab.result),
            location = coalesce(event.unit, order.unit),
            month = floor_date(detail.datetime, unit = "month"),
@@ -52,6 +51,12 @@ requests <- orders_requests %>%
     count %>%
     rename(requests = n) %>%
     filter(order.unit %in% hvi)
+
+early_am <- orders_early_am %>%
+    group_by(order.unit) %>%
+    count() %>%
+    rename(early_am = n) %>%
+    filter(order.unit %in% hvi) 
 
 # percent_timely = timely / collected,
            
@@ -122,7 +127,11 @@ ggplot(orders_levels, aes(x = priority, fill = not_collected)) +
 ```{r}
 ggplot(orders_levels, aes(x = not_collected, y = order_detail_diff)) +
     geom_boxplot() +
-    coord_cartesian(ylim = c(0, 100))
+    coord_cartesian(ylim = c(-50, 100))
+```
+
+```{r}
+t.test(order_detail_diff ~ not_collected, orders_levels)
 ```
 
 ```{r}
@@ -162,21 +171,32 @@ knitr::kable(total[, 1:9], caption = "Raw Data for HVI and By Unit")
 ### Orders Placed by Vancomycin Request
 
 ```{r, results='asis'}
-df <- orders_requests %>%
-    filter(order.unit %in% hvi) %>%
-    mutate(month = floor_date(detail.datetime, unit = "month"),
-           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
-           hour = hour(detail.datetime)) 
+# df <- orders_requests %>%
+#     filter(order.unit %in% hvi) %>%
+#     mutate(month = floor_date(detail.datetime, unit = "month"),
+#            day = wday(detail.datetime, label = TRUE, abbr = FALSE),
+#            hour = hour(detail.datetime)) 
+# 
+# vars <- c("shift")
+# tbl_hvi <- CreateTableOne(vars, data = df)
+# tbl_units <- CreateTableOne(vars, "order.unit", data = df)
+# ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
+# ptbl_units <- print(tbl_units, printToggle = FALSE)
+# rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
+# total <- cbind(ptbl_hvi, ptbl_units)
+# knitr::kable(total[, 1:9], caption = "Orders by Vancomycin Request")
 
-vars <- c("shift")
-tbl_hvi <- CreateTableOne(vars, data = df)
-tbl_units <- CreateTableOne(vars, "order.unit", data = df)
-ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
-ptbl_units <- print(tbl_units, printToggle = FALSE)
-rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
-total <- cbind(ptbl_hvi, ptbl_units)
-knitr::kable(total[, 1:9], caption = "Orders by Vancomycin Request")
+ggplot(requests, aes(x = order.unit, y = requests)) +
+    geom_bar(stat = "identity")
 ```
+
+### Early AM orders
+
+```{r}
+ggplot(early_am, aes(x = order.unit, y = early_am)) +
+    geom_bar(stat = "identity")
+```
+
 
 ## Exploration of CVICU Levels
 ```{r}
@@ -255,13 +275,6 @@ ggplot(orders_levels, aes(x = hour)) +
     facet_wrap(~ location)
 ```
 
-```{r}
-cvicu_pm <- cvicu %>%
-    filter(hour >= 12,
-           hour <= 18)
-```
-
-
 ### Timing
 
 Distribution of difference between desired draw time and actual draw time.
@@ -317,40 +330,6 @@ cvicu %>%
     ggtitle("Time from order to draw vs. time to actual draw") +
     xlab("Ordering to desired draw (hours)") +
     ylab("Desired draw to actual draw (minutes)")
-```
-
-#### Subset of levels from 12pm - 6pm
-
-```{r, fig.cap="Time from order to draw vs. time to actual draw"}
-cvicu_pm %>%
-    filter(!is.na(sched_diff),
-           !is.na(collect_detail_diff)) %>%
-    ggplot(aes(x = as.numeric(sched_diff), y = as.numeric(collect_detail_diff))) +
-    geom_point(alpha = 0.6) +
-    scale_x_continuous(breaks = seq(0, 96, 12)) +
-    ggtitle("Time from order to draw vs. time to actual draw") +
-    xlab("Ordering to desired draw (hours)") +
-    ylab("Desired draw to actual draw (minutes)")
-```
-
-```{r}
-shifts <- cvicu_pm %>%
-    mutate(same_day = floor_date(order.datetime, unit = "day") == floor_date(detail.datetime, unit = "day"),
-           after7 = hour(order.datetime) >= 7,
-           same_shift = same_day & after7) %>%
-    group_by(not_collected) %>%
-    summarize(same_shift = sum(same_shift) / n())
-
-ggplot(shifts, aes(x = not_collected, y = same_shift)) +
-    geom_bar(stat = "identity")
-```
-
-```{r}
-cvicu_pm %>%
-    filter(!is.na(sched_diff)) %>%
-    ggplot(aes(x = not_collected, y = sched_diff)) +
-    geom_boxplot() +
-    coord_cartesian(ylim = c(0, 100))
 ```
 
 ### Time Differences
