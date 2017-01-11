@@ -81,6 +81,17 @@ order_by <- valid_actions %>%
            action.provider != "SYSTEM") %>%
     select(order.id, action.provider.role, action.comm)
 
+request_actions <- order_actions %>%
+    semi_join(requests, c("pie.id", "order.id"))
+
+request_order_by <- request_actions %>%
+    filter(action.type == "Order",
+           action.provider != "SYSTEM") %>%
+    select(order.id, action.provider.role, action.comm)
+
+requests <- requests %>%
+    left_join(request_order_by, by = "order.id")
+
 actions <- valid_actions %>%
     select(pie.id, order.id, order.status, action.datetime) %>%
     arrange(pie.id, order.id, action.datetime) %>%
@@ -183,8 +194,8 @@ orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
     group_by(pie.id) %>%
     arrange(pie.id, detail.datetime) %>%
     mutate(mult_levels = is.na(Collected) &
-               lead(Collected) <= detail.datetime + hours(6) &
-               lag(Collected >= detail.datetime - hours(6)))
+               lead(Collected) <= detail.datetime + hours(3) &
+               lag(Collected >= detail.datetime - hours(3)))
 
 # requests <- orders %>%
 #     # select(pie.id:order.datetime, action.comm, request, Canceled:detail.datetime) %>%
@@ -207,14 +218,14 @@ orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
 #     mutate(req_completed = TRUE) %>%
 #     select(pie.id, order.id = req_id, req_completed)
 #
-orders_requests <- requests
+# orders_requests <- requests %>%
     # left_join(requests, reqs_completed, by = c("pie.id", "order.id")) %>%
     # mutate(req_completed = coalesce(req_completed, FALSE))
 
-orders_valid <- orders %>%
+# orders_valid <- orders %>%
     # filter(is.na(cancel.action.datetime),
            # mult_levels != TRUE)
-    filter(mult_levels != TRUE)
+    # filter(mult_levels != TRUE)
 
 # df <- full_join(levels, orders_valid, by = c("pie.id", "order.id"))
 #
@@ -224,6 +235,6 @@ orders_valid <- orders %>%
 # id <- concat_encounters(missing_orders$order.id)
 
 saveRDS(orders, "data/tidy/orders_valid.Rds")
-saveRDS(orders_requests, "data/tidy/orders_requests.Rds")
+saveRDS(requests, "data/tidy/orders_requests.Rds")
 saveRDS(early_am, "data/tidy/orders_early_am.Rds")
 # saveRDS(levels, "data/tidy/levels.Rds")
