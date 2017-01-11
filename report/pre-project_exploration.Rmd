@@ -28,7 +28,8 @@ orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id
            location = coalesce(event.unit, order.unit),
            month = floor_date(detail.datetime, unit = "month"),
            day = wday(detail.datetime, label = TRUE, abbr = FALSE),
-           hour = hour(detail.datetime)) %>%
+           hour = hour(detail.datetime),
+           exceed_2hr = abs(collect_detail_diff) > 120) %>%
     dmap_at(c("timely90", "timely60", "timely30"), ~ coalesce(.x, FALSE))
 
 collected <- orders_levels %>%
@@ -37,7 +38,8 @@ collected <- orders_levels %>%
     summarize(collected = n(),
               timely = sum(timely60, na.rm = TRUE),
               early = sum(early, na.rm = TRUE),
-              late = sum(late, na.rm = TRUE)) 
+              late = sum(late, na.rm = TRUE),
+              late_2hr = sum(exceed_2hr, na.rm = TRUE)) 
 
 not_done <- orders_levels %>%
     filter(is.na(Collected),
@@ -64,20 +66,22 @@ totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit
     left_join(requests, by = c("event.unit" = "order.unit")) %>%
     mutate(total = collected + not_done,
            percent_not_done = not_done / total,
-           percent_appropriate = timely / total)
+           percent_appropriate = timely / total,
+           percent_exceed_2hr = late_2hr / total)
 
 totals_hvi <- totals_units %>%
     ungroup() %>%
-    summarize_at(vars(collected, timely, early, late, not_done, requests, total), funs(sum), na.rm = TRUE) %>%
+    summarize_at(vars(collected, timely, early, late, late_2hr, not_done, requests, total), funs(sum), na.rm = TRUE) %>%
     mutate(event.unit = "HVI",
            percent_not_done = not_done / total,
-           percent_appropriate = timely / total) 
+           percent_appropriate = timely / total,
+           percent_exceed_2hr = late_2hr / total) 
 
 totals <- bind_rows(totals_units, totals_hvi) %>%
     select(event.unit, num_levels = total, everything()) %>%
     filter(!is.na(event.unit))
 
-```
+W```
 
 ## Result Summary
 
@@ -120,6 +124,21 @@ ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
 ```
 
 ```{r}
+df <- totals %>%
+    filter(event.unit != "HVI")
+
+hvi_avg <- totals$percent_exceed_2hr[totals$event.unit == "HVI"]
+
+ggplot(df, aes(x = event.unit, y = percent_exceed_2hr)) +
+    geom_bar(stat = "identity") +
+    geom_hline(yintercept = hvi_avg, color = "blue") +
+    ggtitle("Vancomycin Levels Collected > 2 Hours from Desired Time") +
+    xlab("Unit") +
+    ylab("Percent of Levels") 
+```
+
+
+```{r}
 ggplot(orders_levels, aes(x = priority, fill = not_collected)) +
     geom_bar()
 ```
@@ -136,7 +155,7 @@ t.test(order_detail_diff ~ not_collected, orders_levels)
 
 ```{r}
 orders_levels %>%
-    filter(not_collected) %>%
+    # filter(not_collected) %>%
     dmap_at("action.provider.role", fct_infreq) %>%
     dmap_at("action.provider.role", fct_lump, n = 10) %>%
     ggplot(aes(x = action.provider.role)) +
@@ -146,10 +165,10 @@ orders_levels %>%
 
 ```{r}
 orders_levels %>%
-    filter(not_collected) %>%
+    # filter(not_collected) %>%
     # dmap_at("action.comm", as.factor) %>%
-    # dmap_at("action.comm", fct_inorder) %>%
-    # dmap_at("action.provider.role", fct_lump, n = 10) %>%
+    dmap_at("action.comm", fct_infreq) %>%
+    dmap_at("action.comm", fct_lump, n = 10) %>%
     ggplot(aes(x = action.comm)) +
     geom_bar() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -190,6 +209,18 @@ ggplot(requests, aes(x = order.unit, y = requests)) +
     geom_bar(stat = "identity")
 ```
 
+```{r}
+orders_requests %>%
+    # filter(not_collected) %>%
+    filter(!is.na(action.provider.role)) %>%
+    # dmap_at("action.comm", as.factor) %>%
+    dmap_at("action.provider.role", fct_infreq) %>%
+    dmap_at("action.provider.role", fct_lump, n = 10) %>%
+    ggplot(aes(x = action.provider.role)) +
+    geom_bar() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
 ### Early AM orders
 
 ```{r}
@@ -206,6 +237,12 @@ cvicu <- orders_levels %>%
            month != "2017-01-01") %>%
     rename(appropriate = timely60)
 ```
+
+#### Summary of time difference, in minutes
+```{r}
+summary(cvicu$collect_detail_diff)
+```
+
 
 ### By Shift
 ```{r}
@@ -252,6 +289,11 @@ ptbl <- print(tbl, printToggle = FALSE)
 knitr::kable(ptbl[, 1:8], caption = "Vancomycin Levels in CVICU by Day of Week")
 ```
 
+```{r}
+ggplot(cvicu, aes(x = day)) +
+    geom_bar(aes(fill = appropriate)) +
+    ggtitle("Appropriately vs. Inappriately Collected Levels by Day of Week") 
+```
 ### By Hour of Day
 
 ```{r, fig.cap="Appropriately vs. Inappriately Collected Levels by Hour of Day"}
