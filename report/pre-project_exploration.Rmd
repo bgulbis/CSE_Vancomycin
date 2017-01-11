@@ -81,7 +81,7 @@ totals <- bind_rows(totals_units, totals_hvi) %>%
     select(event.unit, num_levels = total, everything()) %>%
     filter(!is.na(event.unit))
 
-W```
+```
 
 ## Result Summary
 
