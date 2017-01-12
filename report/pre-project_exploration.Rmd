@@ -32,6 +32,12 @@ orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id
            exceed_2hr = abs(collect_detail_diff) > 120) %>%
     dmap_at(c("timely90", "timely60", "timely30"), ~ coalesce(.x, FALSE))
 
+early_am_levels <- orders_levels %>%
+    filter(priority == "Routine", is.na(freq))
+
+orders_levels <- orders_levels %>%
+    anti_join(early_am_levels, by = c("pie.id", "order.id"))
+
 collected <- orders_levels %>%
     filter(!is.na(Collected)) %>%
     group_by(event.unit) %>%
@@ -65,13 +71,14 @@ early_am <- orders_early_am %>%
 totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit")) %>%
     left_join(requests, by = c("event.unit" = "order.unit")) %>%
     mutate(total = collected + not_done,
+           defects = total - timely,
            percent_not_done = not_done / total,
            percent_appropriate = timely / total,
            percent_exceed_2hr = late_2hr / total)
 
 totals_hvi <- totals_units %>%
     ungroup() %>%
-    summarize_at(vars(collected, timely, early, late, late_2hr, not_done, requests, total), funs(sum), na.rm = TRUE) %>%
+    summarize_at(vars(collected, timely, early, late, late_2hr, not_done, requests, total, defects), funs(sum), na.rm = TRUE) %>%
     mutate(event.unit = "HVI",
            percent_not_done = not_done / total,
            percent_appropriate = timely / total,
@@ -174,6 +181,37 @@ orders_levels %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+## Defects per Million Opportunities
+
+```{r}
+sigma_lookup <- function(x) {
+    case_when(
+        x <= 308538 ~ 2.000,
+        x <= 353830 ~ 1.875,
+        x <= 401294 ~ 1.750,
+        x <= 450262 ~ 1.625,
+        x <= 500000 ~ 1.500
+    )
+}
+
+defects <- totals %>%
+    select(event.unit, units = num_levels, defects) %>%
+    mutate(opportunities = 1,
+           dpo = defects / (units * opportunities),
+           dpmo = dpo * 1000000,
+           sigma = sigma_lookup(dpmo))
+
+knitr::kable(defects)
+# vars <- names(defects[-1])
+# tbl_defects_all <- CreateTableOne(vars, data = defects)
+# tbl_defects_unit <- CreateTableOne(vars, "event.unit", data = defects)
+# ptbl_hvi <- print(tbl_defects_all, printToggle = FALSE)
+# ptbl_units <- print(tbl_defects_unit, printToggle = FALSE)
+# rownames(ptbl_hvi) <- str_replace_all(rownames(ptbl_hvi), "   ", "- ")
+# total <- cbind(ptbl_hvi, ptbl_units)
+# knitr::kable(total[, 1:9], caption = "Raw Data for HVI and By Unit")
+```
+
 #### Raw Data
 
 ```{r, results='asis'}
@@ -227,6 +265,14 @@ orders_requests %>%
 ggplot(early_am, aes(x = order.unit, y = early_am)) +
     geom_bar(stat = "identity")
 ```
+
+### Early AM Levels Collected vs. Not Collected
+
+```{r}
+ggplot(early_am_levels, aes(x = location, fill = not_collected)) +
+    geom_bar()
+```
+
 
 
 ## Exploration of CVICU Levels
@@ -302,6 +348,23 @@ ggplot(cvicu, aes(x = hour)) +
     ggtitle("Appropriately vs. Inappriately Collected Levels by Hour of Day")
 ```
 
+```{r}
+cvicu %>%
+    filter(!appropriate) %>%
+    ggplot(aes(x = hour)) +
+    geom_bar() + 
+    ggtitle("Number of Untimely Levels by Hours of Day")
+```
+
+```{r}
+orders_levels %>%
+    rename(appropriate = timely60) %>%
+    filter(!appropriate) %>% 
+    ggplot(aes(x = hour)) +
+    geom_bar() +
+    ggtitle("Number of Untimely Levels by Hours of Day by Unit") +
+    facet_wrap(~ location)
+```
 
 ```{r, fig.cap="Collected vs. Un-Collected Levels by Hour of Day"}
 ggplot(cvicu, aes(x = hour)) +
@@ -338,6 +401,12 @@ ggplot(cvicu, aes(x = collect_detail_diff)) +
 * Red lines represent standard deviation
 * Green dashed lines represent 60 minutes
 
+```{r}
+ggplot(cvicu, aes(x = collect_detail_diff)) +
+    geom_histogram(binwidth = 60)
+```
+
+
 #### Remove extreme outliers
 
 ```{r, fig.cap="Distribution of Time Difference Without Outliers"}
@@ -368,6 +437,7 @@ cvicu %>%
            !is.na(collect_detail_diff)) %>%
     ggplot(aes(x = as.numeric(sched_diff), y = as.numeric(collect_detail_diff))) +
     geom_point(aes(color = shift), alpha = 0.6) +
+    geom_smooth(method = "lm") +
     scale_x_continuous(breaks = seq(0, 96, 12)) +
     ggtitle("Time from order to draw vs. time to actual draw") +
     xlab("Ordering to desired draw (hours)") +
