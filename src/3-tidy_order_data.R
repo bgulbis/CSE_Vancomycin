@@ -183,10 +183,10 @@ orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
     #        is.na(Discontinued)) %>%
     mutate(collect_detail_diff = as.numeric(difftime(Collected, detail.datetime, units = "mins")),
            order_detail_diff = as.numeric(difftime(detail.datetime, order.datetime, units = "hours")),
-           request = str_detect(order, "Request"),
-           timely90 = abs(collect_detail_diff) <= 90,
+           early_am = priority == "Routine" & is.na(freq),
+           timely120 = abs(collect_detail_diff) <= 120,
            timely60 = abs(collect_detail_diff) <= 60,
-           timely30 = abs(collect_detail_diff) <= 30,
+           appropriate = timely60 | (early_am & timely120),
            early = collect_detail_diff <= -120,
            late = collect_detail_diff >= 240,
            sched_diff = as.numeric(difftime(detail.datetime, Scheduled, units = "hours")),

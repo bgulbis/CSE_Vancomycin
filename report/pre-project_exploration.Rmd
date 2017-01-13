@@ -30,19 +30,19 @@ orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id
            day = wday(detail.datetime, label = TRUE, abbr = FALSE),
            hour = hour(detail.datetime),
            exceed_2hr = abs(collect_detail_diff) > 120) %>%
-    dmap_at(c("timely90", "timely60", "timely30"), ~ coalesce(.x, FALSE))
+    dmap_at(c("timely120", "timely60", "appropriate"), ~ coalesce(.x, FALSE))
 
-early_am_levels <- orders_levels %>%
-    filter(priority == "Routine", is.na(freq))
-
-orders_levels <- orders_levels %>%
-    anti_join(early_am_levels, by = c("pie.id", "order.id"))
+# early_am_levels <- orders_levels %>%
+#     filter(priority == "Routine", is.na(freq))
+# 
+# orders_levels <- orders_levels %>%
+#     anti_join(early_am_levels, by = c("pie.id", "order.id"))
 
 collected <- orders_levels %>%
     filter(!is.na(Collected)) %>%
     group_by(event.unit) %>%
     summarize(collected = n(),
-              timely = sum(timely60, na.rm = TRUE),
+              timely = sum(appropriate, na.rm = TRUE),
               early = sum(early, na.rm = TRUE),
               late = sum(late, na.rm = TRUE),
               late_2hr = sum(exceed_2hr, na.rm = TRUE)) 
@@ -215,7 +215,7 @@ knitr::kable(defects)
 #### Raw Data
 
 ```{r, results='asis'}
-vars <- c("not_collected", "timely90", "timely60", "timely30", "collect_detail_diff", "priority", "shift")
+vars <- c("appropriate", "not_collected", "early_am", "timely120", "timely60", "collect_detail_diff", "priority", "shift")
 tbl_hvi <- CreateTableOne(vars, data = orders_levels)
 tbl_units <- CreateTableOne(vars, "location", data = orders_levels)
 ptbl_hvi <- print(tbl_hvi, printToggle = FALSE)
@@ -266,22 +266,28 @@ ggplot(early_am, aes(x = order.unit, y = early_am)) +
     geom_bar(stat = "identity")
 ```
 
-### Early AM Levels Collected vs. Not Collected
-
+#### Early AM Appropriate 
 ```{r}
-ggplot(early_am_levels, aes(x = location, fill = not_collected)) +
+orders_levels %>%
+    filter(early_am) %>%
+    ggplot(aes(x = location, fill = appropriate)) +
     geom_bar()
 ```
 
-
+#### Early AM Collected
+```{r}
+orders_levels %>%
+    filter(early_am) %>%
+    ggplot(aes(x = location, fill = not_collected)) +
+    geom_bar()
+```
 
 ## Exploration of CVICU Levels
 ```{r}
 cvicu <- orders_levels %>%
     filter(location == "HH CVICU",
            month != "2016-03-01",
-           month != "2017-01-01") %>%
-    rename(appropriate = timely60)
+           month != "2017-01-01") 
 ```
 
 #### Summary of time difference, in minutes
@@ -358,7 +364,6 @@ cvicu %>%
 
 ```{r}
 orders_levels %>%
-    rename(appropriate = timely60) %>%
     filter(!appropriate) %>% 
     ggplot(aes(x = hour)) +
     geom_bar() +
@@ -372,11 +377,26 @@ ggplot(cvicu, aes(x = hour)) +
     ggtitle("Collected vs. Un-Collected Levels by Hour of Day")
 ```
 
+```{r}
+cvicu %>%
+    group_by(hour) %>%
+    summarize(not_collected = sum(not_collected) / n()) %>%
+    ggplot(aes(x = hour, y = not_collected)) +
+    geom_bar(stat = "identity") +
+    ggtitle("Percent of Levels that are Un-Collected by Hour of Day")
+```
 
 ```{r}
-ggplot(orders_levels, aes(x = hour)) +
-    geom_bar(aes(fill = not_collected)) +
-    ggtitle("Collected vs. Un-Collected Levels by Hour of Day") +
+orders_levels %>%
+    group_by(location, hour) %>%
+    summarize(not_collected = sum(not_collected) / n()) %>%
+    ggplot(aes(x = hour, y = not_collected)) +
+    geom_bar(stat = "identity") +
+    ggtitle("Percent of Levels that are Un-Collected by Hour of Day") +
+    # filter(not_collected) %>%
+    # ggplot(aes(x = hour)) +
+    # geom_bar() +
+    # ggtitle("Un-Collected Levels by Hour of Day") +
     facet_wrap(~ location)
 ```
 
