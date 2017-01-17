@@ -131,6 +131,22 @@ ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
 ```
 
 ```{r}
+ggplot(orders_levels, aes(x = priority, y = collect_detail_diff)) +
+    geom_boxplot() +
+    # ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
+    coord_cartesian(ylim = c(-250, 300))
+```
+
+```{r}
+orders_levels %>%
+    filter(!is.na(freq)) %>%
+    ggplot(aes(x = priority, y = collect_detail_diff)) +
+    geom_boxplot() +
+    # ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
+    coord_cartesian(ylim = c(-250, 350))
+```
+
+```{r}
 df <- totals %>%
     filter(event.unit != "HVI")
 
