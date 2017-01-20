@@ -17,6 +17,7 @@ library(forcats)
 library(lubridate)
 library(tableone)
 library(pander)
+library(qicharts)
 
 dirr::get_rds("../data/tidy")
 
@@ -496,6 +497,22 @@ ggplot(cvicu, aes(x = shift, y = as.numeric(collect_detail_diff))) +
 ```{r}
 t.test(collect_detail_diff ~ shift, cvicu)
 ```
+
+### CVICU Control Chart
+
+```{r}
+cvicu %>%
+    arrange(detail.datetime) %>%
+    qic(y = collect_detail_diff, data = .)
+```
+
+
+```{r}
+cvicu %>%
+    arrange(detail.datetime) %>%
+    qic(y = collect_detail_diff, data = ., chart = "i")
+```
+
 
 ## Notes
 
