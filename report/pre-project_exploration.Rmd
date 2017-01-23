@@ -17,6 +17,7 @@ library(forcats)
 library(lubridate)
 library(tableone)
 library(pander)
+library(qicharts)
 
 dirr::get_rds("../data/tidy")
 
@@ -27,6 +28,7 @@ orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id
     mutate(not_collected = is.na(Collected) & is.na(lab.result),
            location = coalesce(event.unit, order.unit),
            month = floor_date(detail.datetime, unit = "month"),
+           week = floor_date(detail.datetime, unit = "week"),
            day = wday(detail.datetime, label = TRUE, abbr = FALSE),
            hour = hour(detail.datetime),
            exceed_2hr = abs(collect_detail_diff) > 120) %>%
@@ -496,6 +498,63 @@ ggplot(cvicu, aes(x = shift, y = as.numeric(collect_detail_diff))) +
 ```{r}
 t.test(collect_detail_diff ~ shift, cvicu)
 ```
+
+### CVICU Control Chart
+
+```{r}
+cvicu %>%
+    arrange(detail.datetime) %>%
+    qic(y = collect_detail_diff, data = .)
+```
+
+
+```{r}
+cvicu %>%
+    arrange(detail.datetime) %>%
+    qic(y = collect_detail_diff, data = ., chart = "i")
+```
+
+### Orders by Week
+
+```{r}
+weekly_requests <- orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           is.na(cancel.datetime),
+           !is.na(action.provider.role)) %>%
+    mutate(week = floor_date(request.datetime, unit = "week")) %>%
+    group_by(week) %>%
+    count() %>%
+    rename(requests = n) %>%
+    filter(week != "2016-03-27")
+
+weekly_levels <- cvicu %>%
+    filter(week != "2016-03-27") %>%
+    group_by(week) %>%
+    summarize(levels = n(),
+             early_am = sum(early_am),
+             appropriate = sum(appropriate),
+             uncollected = sum(not_collected)) %>%
+    full_join(weekly_requests, by = "week") %>%
+    dmap_at("requests", ~ coalesce(.x, 0L))
+```
+
+```{r}
+vars <- c("levels", "early_am", "requests", "appropriate", "uncollected")
+tbl <- CreateTableOne(vars, data = weekly_levels)
+ptbl <- print(tbl, printToggle = FALSE)
+knitr::kable(ptbl, caption = "Number of Levels, Early AM, and Requests by Week in CVICU")
+```
+
+
+```{r, fig.cap="Number of Levels, Early AM, and Requests by Week in CVICU"}
+weekly_levels %>%
+    gather(key, value, levels:requests) %>%
+    ggplot(aes(x = week, y = value)) +
+    geom_line(aes(color = key)) +
+    scale_color_brewer(palette = "Set1") +
+    theme(legend.position = "bottom")
+```
+
 
 ## Notes
 
