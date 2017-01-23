@@ -1,0 +1,263 @@
+---
+title: "Appropriate Vancomycin Level Collection in CVICU"
+subtitle: "CS&E Project"
+author: "Brian Gulbis, PharmD, BCPS"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  tint::tintPdf: 
+    citation_package: natbib
+    latex_engine: pdflatex
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tint)
+# invalidate cache when the package version changes
+knitr::opts_chunk$set(tidy = FALSE, echo = FALSE, cache.extra = packageVersion('tint'))
+options(htmltools.dir.version = FALSE)
+```
+
+```{r, message=FALSE}
+library(tidyverse)
+library(stringr)
+library(forcats)
+library(lubridate)
+library(tableone)
+
+x <- dirr::get_rds("../data/tidy")
+
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+
+orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
+    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
+    mutate(uncollected = is.na(Collected) & is.na(lab.result),
+           location = coalesce(event.unit, order.unit),
+           month = floor_date(detail.datetime, unit = "month"),
+           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
+           hour = hour(detail.datetime),
+           exceed_2hr = abs(collect_detail_diff) > 120) %>%
+    dmap_at(c("timely120", "timely60", "appropriate"), ~ coalesce(.x, FALSE))
+
+collected <- orders_levels %>%
+    filter(!is.na(Collected)) %>%
+    group_by(event.unit) %>%
+    summarize(collected = n(),
+              timely = sum(appropriate, na.rm = TRUE),
+              early = sum(early, na.rm = TRUE),
+              late = sum(late, na.rm = TRUE),
+              late_2hr = sum(exceed_2hr, na.rm = TRUE)) 
+
+not_done <- orders_levels %>%
+    filter(is.na(Collected),
+           is.na(lab.result)) %>%
+    group_by(order.unit) %>%
+    count %>%
+    rename(not_done = n)
+
+requests <- orders_requests %>%
+    group_by(order.unit) %>%
+    count %>%
+    rename(requests = n) %>%
+    filter(order.unit %in% hvi)
+
+early_am <- orders_early_am %>%
+    group_by(order.unit) %>%
+    count() %>%
+    rename(early_am = n) %>%
+    filter(order.unit %in% hvi) 
+
+totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit")) %>%
+    left_join(requests, by = c("event.unit" = "order.unit")) %>%
+    mutate(total = collected + not_done,
+           defects = total - timely,
+           percent_not_done = not_done / total * 100,
+           percent_appropriate = timely / total * 100,
+           percent_exceed_2hr = late_2hr / total * 100)
+
+totals_hvi <- totals_units %>%
+    ungroup() %>%
+    summarize_at(vars(collected, timely, early, late, late_2hr, not_done, requests, total, defects), funs(sum), na.rm = TRUE) %>%
+    mutate(event.unit = "HVI",
+           percent_not_done = not_done / total * 100,
+           percent_appropriate = timely / total * 100,
+           percent_exceed_2hr = late_2hr / total * 100) 
+
+totals <- bind_rows(totals_units, totals_hvi) %>%
+    select(event.unit, num_levels = total, everything()) %>%
+    filter(!is.na(event.unit))
+
+```
+
+# Problem Overview
+
+In CVICU, only 66% of vancomycin levels are collected appropriately, and this rate has been declining from April to December 2016. This is defined as either being collected within 60 minutes of the scheduled collection time, or within 120 minutes for Early AM levels. Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, which may result in undertreating infections, increased antimicrobial resistance, and increased risk of adverse effects.  
+
+```{r, fig.cap="Appropriately Collected and Uncollected Vancomycin Levels", fig.margin=TRUE}
+hvi_avg_appropriate <- totals$percent_appropriate[totals$event.unit == "HVI"]
+hvi_avg_uncollected <- totals$percent_not_done[totals$event.unit == "HVI"]
+
+totals %>%
+    filter(event.unit != "HVI") %>%
+    rename(appropriate = percent_appropriate,
+           uncollected = percent_not_done) %>%
+    select(event.unit, appropriate, uncollected) %>%
+    gather(key, value, appropriate, uncollected) %>%
+    ggplot(aes(x = event.unit, y = value)) +
+    geom_bar(aes(fill = key), stat = "identity", position = "dodge") +
+    geom_hline(yintercept = hvi_avg_appropriate, linetype = "dashed", color = "#a6cee3") +
+    geom_hline(yintercept = hvi_avg_uncollected, linetype = "dashed", color = "#1f78b4") +
+    # ggtitle("Appropriately Collected Vancomycin Levels") +
+    xlab("Unit") +
+    ylab("Levels (%)") +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_fill_brewer(palette = "Paired", labels = c("Appropriate", "Uncollected"), guide = guide_legend(title = NULL)) +
+    theme_bw() +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+```
+
+# Aim Statement
+
+Increase appropriately collected vancomycin levels in CVICU from 66% to 80% by April 2017
+
+# Project Scope
+
+* Patients on vancomcyin in CVICU
+* Excludes any patients without vancomycin levels (i.e., those on post-operative prophylaxis)
+* Will not assess appropriateness of order or vancomycin dosing
+
+# Financial Implications
+
+A vancomycin level drawn after the scheduled time could actually be supratherapeutic, potentially resulting in nephrotoxicity if the dose is not properly adjusted. Vancomycin-induced nephrotoxicity has been associated with a 46% increase in length of stay and a 17% increase in hospital cost. A vancomycin level drawn before the scheduled time may actually be subtherapeutic, potentially resulting in undertreating the infection. This may ultimately lead to increased antimicrobial resistance, which has been associated with an increased cost of $18,588 to $29,069 per patient, and increase in length of stay of 6.4 to 12.7 days, and an increase in mortality of 6.5%.
+
+# Pre-Intervention Data Analysis
+
+## Comparison of all HVI units
+
+
+
+```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection", warning=FALSE}
+ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
+    geom_boxplot() +
+    # ggtitle("Time Difference Between Scheduled and Actual Level Collection") +
+    xlab("Unit") +
+    ylab("Time (minutes)") +
+    coord_cartesian(ylim = c(-250, 250)) +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+```
+
+```{r}
+sigma_lookup <- function(x) {
+    case_when(
+        x <= 308538 ~ 2.000,
+        x <= 353830 ~ 1.875,
+        x <= 401294 ~ 1.750,
+        x <= 450262 ~ 1.625,
+        x <= 500000 ~ 1.500
+    )
+}
+
+defects <- totals %>%
+    select(event.unit, units = num_levels, defects) %>%
+    mutate(opportunities = 1,
+           dpo = defects / (units * opportunities),
+           dpmo = dpo * 1000000,
+           sigma = sigma_lookup(dpmo))
+
+knitr::kable(defects, caption = "Defefcts per Million Opportunities")
+```
+
+```{r, fig.cap="Orders for Early AM or by Vancomycin Request"}
+left_join(requests, early_am, by = "order.unit") %>%
+    gather(key, value, requests, early_am) %>%
+    ggplot(aes(x = order.unit, y = value)) +
+    geom_bar(aes(fill = key), stat = "identity", position = "dodge") +
+    xlab("Unit") +
+    ylab("Levels (N)") + 
+    scale_fill_brewer(palette = "Paired", labels = c("Early AM", "Request"), guide = guide_legend(title = NULL)) +
+    theme_bw() +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+```
+
+```{marginfigure, echo=TRUE}
+Vancomycin level requests are excluded from the analysis of appropriate collection. Vancomycin levels ordered as Early AM are considered appropriate if they are drawn at 0300 plus/minus 120 minutes.
+```
+
+## CVICU Levels
+
+```{r}
+cvicu <- orders_levels %>%
+    filter(location == "HH CVICU",
+           month != "2016-03-01",
+           month != "2017-01-01") 
+```
+
+```{r}
+vars <- c("appropriate", "uncollected") 
+tbl <- CreateTableOne(vars, "shift", cvicu)
+ptbl <- print(tbl, printToggle = FALSE)
+knitr::kable(ptbl[, 1:3], caption = "Vancomycin Levels in CVICU by Nursing Shift")
+```
+
+```{r, fig.cap="Levels Appropriately Collected and Uncollected by Month"}
+cvicu %>%
+    group_by(month) %>%
+    summarize(appropriate = sum(appropriate) / n() * 100,
+              uncollected = sum(uncollected) / n() * 100) %>%
+    gather(key, value, appropriate, uncollected) %>%
+    ggplot(aes(x = month, y = value)) +
+    geom_line(aes(color = key), size = 2) + 
+    geom_smooth(aes(linetype = key), color = "black", method = "lm") +
+    xlab("Month") +
+    ylab("Levels (%)") +
+    coord_cartesian(ylim = c(0, 100)) +
+    scale_color_brewer(palette = "Paired", labels = c("Appropriate", "Uncollected"), guide = guide_legend(title = NULL)) +
+    scale_linetype_discrete(labels = c("Appropriate Trend", "Uncollected Trend"), guide = guide_legend(title = NULL)) +
+    theme_bw() +
+    theme(legend.position = "bottom")
+```
+
+```{r, fig.cap="Levels Appropriately Collected and Uncollected by Day of Week"}
+cvicu %>%
+    group_by(day) %>%
+    summarize(appropriate = sum(appropriate) / n() * 100,
+              uncollected = sum(uncollected) / n() * 100) %>%
+    gather(key, value, appropriate, uncollected) %>%
+    ggplot(aes(x = day, y = value)) +
+    geom_bar(aes(fill = key), stat = "identity", position = "dodge") +
+    xlab("Day of Week") +
+    ylab("Levels (%)") +
+    coord_cartesian(ylim = c(0, 100)) + 
+    scale_fill_brewer(palette = "Paired", labels = c("Appropriate", "Uncollected"), guide = guide_legend(title = NULL)) +
+    theme_bw() +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
+```
+
+
+```{r, fig.cap="Levels Appropriately Collected and Uncollected by Hour of Day"}
+cvicu %>%
+    group_by(hour) %>%
+    summarize(appropriate = sum(appropriate) / n() * 100,
+              uncollected = sum(uncollected) / n() * 100) %>%
+    gather(key, value, appropriate, uncollected) %>%
+    ggplot(aes(x = hour, y = value)) +
+    geom_bar(aes(fill = key), stat = "identity", position = "dodge") +
+    xlab("Hour of Day") +
+    ylab("Levels (%)") +
+    coord_cartesian(ylim = c(0, 100)) + 
+    scale_fill_brewer(palette = "Paired", labels = c("Appropriate", "Uncollected"), guide = guide_legend(title = NULL)) +
+    theme_bw() +
+    theme(legend.position = "bottom") 
+
+```
+
+
+```{r, fig.cap="Number of Untimely Levels by Hours of Day"}
+cvicu %>%
+    filter(!appropriate) %>%
+    ggplot(aes(x = hour)) +
+    geom_bar() +
+    xlab("Hour of Day") +
+    ylab("Levels (N)") +
+    theme_bw()
+```
