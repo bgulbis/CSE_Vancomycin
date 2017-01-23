@@ -17,26 +17,6 @@ knitr::opts_chunk$set(tidy = FALSE, echo = FALSE, cache.extra = packageVersion('
 options(htmltools.dir.version = FALSE)
 ```
 
-# Problem Overview
-
-In CVICU, only 66% of vancomycin levels are collected appropriately, and this rate has been declining from April to December 2016. This is defined as either being collected within 60 minutes of the scheduled collection time, or within 120 minutes for Early AM levels. Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, which may result in undertreating infections, increased antimicrobial resistance, and increased risk of adverse effects.  
-
-# Aim Statement
-
-Increase appropriately collected vancomycin levels in CVICU from 66% to 80% by April 2017
-
-# Project Scope
-
-* Patients on vancomcyin in CVICU
-* Excludes any patients without vancomycin levels (i.e., those on post-operative prophylaxis)
-* Will not assess appropriateness of order or vancomycin dosing
-
-# Business Case
-
-A vancomycin level drawn after the scheduled time could actually be supratherapeutic, potentially resulting in nephrotoxicity if the dose is not properly adjusted. Vancomycin-induced nephrotoxicity has been associated with a 46% increase in length of stay and a 17% increase in hospital cost. A vancomycin level drawn before the scheduled time may actually be subtherapeutic, potentially resulting in undertreating the infection. This may ultimately lead to increased antimicrobial resistance, which has been associated with an increased cost of $18,588 to $29,069 per patient, and increase in length of stay of 6.4 to 12.7 days, and an increase in mortality of 6.5%.
-
-# Pre-Intervention Data Analysis
-
 ```{r, message=FALSE}
 library(tidyverse)
 library(stringr)
@@ -108,9 +88,11 @@ totals <- bind_rows(totals_units, totals_hvi) %>%
 
 ```
 
-## Comparison of all HVI units
+# Problem Overview
 
-```{r, fig.cap="Appropriately Collected and Uncollected Vancomycin Levels"}
+In CVICU, only 66% of vancomycin levels are collected appropriately, and this rate has been declining from April to December 2016. This is defined as either being collected within 60 minutes of the scheduled collection time, or within 120 minutes for Early AM levels. Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, which may result in undertreating infections, increased antimicrobial resistance, and increased risk of adverse effects.  
+
+```{r, fig.cap="Appropriately Collected and Uncollected Vancomycin Levels", fig.margin=TRUE}
 hvi_avg_appropriate <- totals$percent_appropriate[totals$event.unit == "HVI"]
 hvi_avg_uncollected <- totals$percent_not_done[totals$event.unit == "HVI"]
 
@@ -132,6 +114,26 @@ totals %>%
     theme_bw() +
     theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 6))
 ```
+
+# Aim Statement
+
+Increase appropriately collected vancomycin levels in CVICU from 66% to 80% by April 2017
+
+# Project Scope
+
+* Patients on vancomcyin in CVICU
+* Excludes any patients without vancomycin levels (i.e., those on post-operative prophylaxis)
+* Will not assess appropriateness of order or vancomycin dosing
+
+# Financial Implications
+
+A vancomycin level drawn after the scheduled time could actually be supratherapeutic, potentially resulting in nephrotoxicity if the dose is not properly adjusted. Vancomycin-induced nephrotoxicity has been associated with a 46% increase in length of stay and a 17% increase in hospital cost. A vancomycin level drawn before the scheduled time may actually be subtherapeutic, potentially resulting in undertreating the infection. This may ultimately lead to increased antimicrobial resistance, which has been associated with an increased cost of $18,588 to $29,069 per patient, and increase in length of stay of 6.4 to 12.7 days, and an increase in mortality of 6.5%.
+
+# Pre-Intervention Data Analysis
+
+## Comparison of all HVI units
+
+
 
 ```{r, fig.cap="Time Difference Between Scheduled and Actual Level Collection", warning=FALSE}
 ggplot(orders_levels, aes(x = location, y = collect_detail_diff)) +
