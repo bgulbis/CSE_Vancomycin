@@ -1,13 +1,14 @@
 ---
 title: "Appropriate Vancomycin Level Collection in CVICU"
 subtitle: "CS&E Project"
-author: "Brian Gulbis, PharmD, BCPS"
+author: "Brian Gulbis, Heather Chipuk, Clyde Marquis, Sandra Young"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   tufte::tufte_handout:
-    citation_package: natbib
     latex_engine: pdflatex
 link-citations: yes
+bibliography: bibliography_estrera.bib
+csl: american-medical-association.csl
 ---
 
 ```{r setup, include=FALSE}
@@ -94,29 +95,15 @@ cvicu <- orders_levels %>%
 
 # Problem Overview
 
-`r newthought('In CVICU')`, approximately 40% of vancomycin levels are being collected inappropriately,^[Defined as being collected more than 60 minutes from the scheduled collection time, or more than 120 minutes for Early AM levels] and this rate has been increasing from April to December 2016.   
-
+`r newthought('In CVICU')`, approximately 40% of vancomycin levels are being collected inappropriately, `r margin_note('Inappropriately collected is defined as being collected more than 60 minutes from the scheduled collection time, or more than 120 minutes for Early AM levels')` and this rate has been increasing from April to December 2016. Approximately 9% of ordered levels are never collected.   
 
 Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, which may result in undertreating infections, increased antimicrobial resistance, and increased risk of adverse effects.  
 
-```{r, fig.cap="Appropriately Collected Vancomycin Levels", fig.margin=TRUE}
-hvi_avg_appropriate <- totals$percent_appropriate[totals$event.unit == "HVI"]
+# Aim Statement
 
-totals %>%
-    filter(event.unit != "HVI") %>%
-    rename(appropriate = percent_appropriate) %>%
-    ggplot(aes(x = event.unit, y = appropriate)) +
-    geom_bar(aes(fill = event.unit == "HH CVICU"), stat = "identity", position = "dodge") +
-    geom_hline(yintercept = hvi_avg_appropriate, linetype = "dashed") +
-    xlab("Unit") +
-    ylab("Levels (%)") +
-    coord_cartesian(ylim = c(0, 100)) +
-    scale_fill_brewer(palette = "Paired") +
-    theme_bw() +
-    theme(legend.position = "none", axis.text.x = element_text(angle = 45, hjust = 1))
-```
+Increase the amount of appropriately collected vancomycin levels in CVICU from 60% to 80% by April 2017.
 
-```{r, fig.cap="Inappropriately Collected and Uncollected Levels in CVICU", fig.margin=TRUE}
+```{r monthly-trend, fig.cap="Inappropriately Collected and Uncollected Levels in CVICU", fig.margin=TRUE}
 cvicu %>%
     group_by(month) %>%
     summarize(appropriate = 100 - (sum(appropriate) / n() * 100),
@@ -134,50 +121,62 @@ cvicu %>%
     theme_bw() +
     theme(legend.position = "bottom")
 ```
-# Aim Statement
-
-Increase appropriately collected vancomycin levels in CVICU from 66% to 80% by April 2017
 
 # Project Scope
 
-* Patients on vancomcyin in CVICU
+* Includes patients on vancomcyin in CVICU
 * Excludes any patients without vancomycin levels (i.e., those on post-operative prophylaxis)
-* Will not assess appropriateness of order or vancomycin dosing
+* We will not be assessing the appropriateness of the vancomycin level or vancomycin dosing
 
-# Financial Implications
+# Implications
 
-A vancomycin level drawn after the scheduled time could actually be supratherapeutic, potentially resulting in nephrotoxicity if the dose is not properly adjusted. Vancomycin-induced nephrotoxicity has been associated with a 46% increase in length of stay and a 17% increase in hospital cost.^[Stevens V, et al. Cost and Length of Stay Associated with Vancomycin-Induced Nephrotoxicity (Abstract). Proceedings from: ISPOR 16th Annual European Congress and 4th Latin America Conference 2013] ^[Bamgbola O. Ther Adv Endocrinol Metab 2016;7:136-47] A vancomycin level drawn before the scheduled time may actually be subtherapeutic, potentially resulting in undertreating the infection. This may ultimately lead to increased antimicrobial resistance, which has been associated with an increased cost of $18,588 to $29,069 per patient, and increase in length of stay of 6.4 to 12.7 days, and an increase in mortality of 6.5%.^[Roberts R, et al. Clin Infect Dis 2009;49:1175-84]
+A vancomycin level drawn after the scheduled time could actually be supratherapeutic, potentially resulting in nephrotoxicity if the dose is not properly adjusted. Vancomycin-induced nephrotoxicity has been associated with a 46% increase in length of stay and a 17% increase in hospital cost.[@stevens_2013; @bamgbola_2016] A vancomycin level drawn before the scheduled time may actually be subtherapeutic, potentially resulting in undertreating the infection. This may ultimately lead to increased antimicrobial resistance, which has been associated with an increased cost of $18,588 to $29,069 per patient, and increase in length of stay of 6.4 to 12.7 days, and an increase in mortality of 6.5%.[@roberts_2009]
 
-# Pre-Intervention Data Analysis
+# Pre-Intervention Analysis
 
-```{r, fig.cap="Orders for Early AM or by Vancomycin Request"}
-left_join(requests, early_am, by = "order.unit") %>%
-    gather(key, value, requests, early_am) %>%
-    ggplot(aes(x = order.unit, y = value)) +
-    geom_bar(aes(fill = key), stat = "identity", position = "dodge") +
-    xlab("Unit") +
-    ylab("Levels (N)") + 
-    scale_fill_brewer(palette = "Paired", labels = c("Early AM", "Request"), guide = guide_legend(title = NULL)) +
+Several causes for untimely collection of labs were identified, which can be grouped into three major categories:
+
+1. Provider-related
+1. Nurse-related
+1. System-related
+
+## Provider-related
+
+```{r, fig.cap="Orders for Early AM (top) or by Vancomycin Request (bottom)", fig.show='hold', fig.margin=TRUE}
+ggplot(early_am, aes(x = order.unit, y = early_am)) +
+    geom_bar(aes(fill = order.unit == "HH CVICU"), stat = "identity") +
+    xlab("") +
+    ylab("Levels (N)") +
     theme_bw() +
-    theme(legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1))
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_brewer(palette = "Paired", guide = FALSE) 
+
+ggplot(requests, aes(x = order.unit, y = requests)) +
+    geom_bar(aes(fill = order.unit == "HH CVICU"), stat = "identity") +
+    xlab("Unit") +
+    ylab("Levels (N)") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    scale_fill_brewer(palette = "Paired", guide = FALSE) 
 ```
 
-Vancomycin level requests are excluded from the analysis of appropriate collection. Vancomycin levels ordered as Early AM are considered appropriate if they are drawn at 0300 plus/minus 120 minutes.
+Providers can order a vancomycin trough either as a `Vancomycin Level` or as a `Vancomycin Request`. Orders placed as a `Vancomycin Request` do not automatically generate a task for the nurse to collect the lab, a `Secondary Order` must be manually placed. 
 
-```{r, fig.cap="Inappropriate Levels by Hour of Day"}
+## Nurse-related
+
+There are multiple methods for nurses to view their daily orders tasks and to be notified of new orders and tasks. Additionally, a higher number of vancomycin levels are being inappropriately collected during busy times of the day, such as shift-change and during the afternoons when post-operative patients are arriving from the OR.
+
+```{r, fig.cap="Inappropriate (top) and Uncollected (bottom) Levels by Hour of Day", fig.show='hold', fig.margin=TRUE}
 cvicu %>%
     filter(!appropriate) %>%
     ggplot(aes(x = hour)) +
     geom_bar() +
-    xlab("Hour of Day") +
+    xlab("") +
     ylab("Levels (N)") +
     theme_bw() +
     coord_cartesian(xlim = c(0, 24)) +
-    scale_x_continuous(breaks = seq(0, 24, 6))
-```
+    scale_x_continuous(breaks = seq(0, 24, 6)) 
 
-
-```{r, fig.cap="Uncollected Levels by Hour of Day"}
 cvicu %>%
     filter(uncollected) %>%
     ggplot(aes(x = hour)) +
@@ -186,5 +185,11 @@ cvicu %>%
     ylab("Levels (N)") +
     theme_bw() +
     coord_cartesian(xlim = c(0, 24)) +
-    scale_x_continuous(breaks = seq(0, 24, 6))
+    scale_x_continuous(breaks = seq(0, 24, 6)) 
 ```
+
+## System-related
+
+Within Care4, orders for `Vancomycin Levels` and `Vancomycin Requests` show up differently on the nurse's task list. Furthermore, orders placed for `Early AM` do not require the provider to specify the time for collection of the level. Instead, these orders generate a secondary task within the system which defaults to being collected at 0300.
+
+# References
