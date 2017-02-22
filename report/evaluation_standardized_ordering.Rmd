@@ -1,0 +1,171 @@
+---
+title: "Standardized Vancomycin Ordering"
+author: "Brian Gulbis, PharmD, BCPS"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  html_notebook:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(forcats)
+library(lubridate)
+library(tableone)
+library(pander)
+library(qicharts)
+
+x <- dirr::get_rds("../data/tidy")
+
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+
+orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
+    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
+    mutate(not_collected = is.na(Collected) & is.na(lab.result),
+           location = coalesce(event.unit, order.unit),
+           month = floor_date(detail.datetime, unit = "month"),
+           week = floor_date(detail.datetime, unit = "week"),
+           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
+           hour = hour(detail.datetime),
+           exceed_2hr = abs(collect_detail_diff) > 120,
+           pilot = detail.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    dmap_at(c("timely120", "timely60", "appropriate"), ~ coalesce(.x, FALSE))
+
+cvicu <- orders_levels %>%
+    filter(location == "HH CVICU",
+           month != "2016-03-01") 
+
+collected <- cvicu %>%
+    filter(!is.na(Collected)) %>%
+    group_by(pilot) %>%
+    summarize(collected = n(),
+              timely = sum(appropriate, na.rm = TRUE),
+              early = sum(early, na.rm = TRUE),
+              late = sum(late, na.rm = TRUE),
+              late_2hr = sum(exceed_2hr, na.rm = TRUE)) 
+
+not_done <- cvicu %>%
+    filter(is.na(Collected),
+           is.na(lab.result)) %>%
+    group_by(pilot) %>%
+    count %>%
+    rename(not_done = n)
+
+requests <- orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           order.datetime > mdy("3/31/2016", tz = "US/Central")) %>%
+    mutate(pilot = order.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    group_by(pilot) %>%
+    count %>%
+    rename(requests = n) 
+
+early_am <- orders_early_am %>%
+    filter(order.unit == "HH CVICU",
+           order.datetime > mdy("3/31/2016", tz = "US/Central")) %>%
+    mutate(pilot = order.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    group_by(pilot) %>%
+    count() %>%
+    rename(early_am = n) 
+
+totals_cvicu <- left_join(collected, not_done, by = "pilot") %>%
+    left_join(requests, by = "pilot") %>%
+    left_join(early_am, by = "pilot") %>%
+    mutate(total = collected + not_done,
+           defects = total - timely)
+```
+
+### Change in Order Types from Baseline
+
+```{r}
+weekly_requests <- orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           is.na(cancel.datetime),
+           !is.na(action.provider.role)) %>%
+    mutate(week = floor_date(request.datetime, unit = "week")) %>%
+    group_by(week) %>%
+    count() %>%
+    rename(requests = n) %>%
+    filter(week != "2016-03-27", week != "2017-02-19")
+
+weekly_levels <- cvicu %>%
+    filter(week != "2016-03-27", week != "2017-02-19") %>%
+    group_by(week) %>%
+    summarize(levels = n(),
+             early_am = sum(early_am),
+             appropriate = sum(appropriate),
+             uncollected = sum(not_collected)) %>%
+    full_join(weekly_requests, by = "week") %>%
+    dmap_at("requests", ~ coalesce(.x, 0L))
+```
+
+```{r}
+weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
+    mutate(pilot = ymd(week, tz = "US/Central") >= mdy("1/29/2017", tz = "US/Central")) %>%
+    group_by(pilot) %>%
+    summarize_if(is.numeric, mean) %>%
+    gather(key, value, early_am:requests) %>%
+    select(-levels) %>%
+    spread(pilot, value) %>%
+    rename(baseline = `FALSE`, pilot = `TRUE`) %>%
+    mutate(change = (pilot / baseline * 100) - 100) %>%
+    ggplot(aes(x = key, y = change)) +
+    geom_bar(stat = "identity") + 
+    xlab("Order Type") +
+    ylab("Change from Baseline (%)")
+```
+
+```{r}
+totals_cvicu %>%
+    group_by(pilot) %>%
+    summarize_at(c("not_done", "timely", "late_2hr", "early_am", "requests"), funs(. / total)) %>%
+    gather(key, value, -pilot) %>%
+    ggplot(aes(x = pilot, y = value)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~key)
+```
+
+```{r}
+orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           order.datetime > mdy("3/31/2016", tz = "US/Central")) %>%
+    mutate(pilot = order.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    filter(!is.na(action.provider.role)) %>%
+    group_by(pilot) %>%
+    mutate_at("action.provider.role", fct_infreq) %>%
+    mutate_at("action.provider.role", fct_lump, n = 10) %>%
+    ggplot(aes(x = action.provider.role)) +
+    geom_bar() +
+    facet_wrap(~ pilot) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Change in DPMO
+
+```{r}
+sigma_lookup <- function(x) {
+    case_when(
+        x <= 308538 ~ 2.000,
+        x <= 353830 ~ 1.875,
+        x <= 401294 ~ 1.750,
+        x <= 450262 ~ 1.625,
+        x <= 500000 ~ 1.500
+    )
+}
+
+defects <- totals_cvicu %>%
+    select(pilot, units = total, defects) %>%
+    group_by(pilot) %>%
+    mutate(opportunities = 1,
+           dpo = defects / (units * opportunities),
+           dpmo = dpo * 1000000,
+           sigma = sigma_lookup(dpmo))
+
+knitr::kable(defects, digits = 3)
+```
+
