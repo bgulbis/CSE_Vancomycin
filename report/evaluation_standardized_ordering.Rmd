@@ -169,3 +169,79 @@ defects <- totals_cvicu %>%
 knitr::kable(defects, digits = 3)
 ```
 
+### Hour of Day
+
+#### Untimely Levels as Percent of Total per Hour
+```{r}
+cvicu %>%
+    group_by(pilot, hour) %>%
+    summarize_at("appropriate", funs(100 - (sum(.) / n() * 100))) %>%
+    ggplot(aes(x = hour, y = appropriate)) +
+    geom_bar(stat = "identity") +
+    xlab("Hour") +
+    ylab("Untimely Levels (%)") +
+    facet_wrap(~ pilot) + 
+    coord_cartesian(xlim = c(0, 24)) +
+    scale_x_continuous(breaks = seq(0, 24, 6)) 
+```
+
+#### Uncollected Levels as Percent of Total per Hour
+```{r}
+cvicu %>%
+    group_by(pilot, hour) %>%
+    summarize_at("not_collected", funs(sum(.) / n() * 100)) %>%
+    ggplot(aes(x = hour, y = not_collected)) +
+    geom_bar(stat = "identity") +
+    xlab("Hour") +
+    ylab("Uncollected Levels (%)") +
+    facet_wrap(~ pilot) + 
+    coord_cartesian(xlim = c(0, 24)) +
+    scale_x_continuous(breaks = seq(0, 24, 6)) 
+```
+
+### Control Charts
+
+#### Timeliness - Before and After Pilot
+```{r}
+cvicu %>%
+    filter(detail.datetime >= mdy("12/1/2016", tz = "US/Central")) %>%
+    arrange(detail.datetime) %>%
+    qic(y = collect_detail_diff, data = ., chart = "i", breaks = nrow(.) - sum(.$pilot))
+```
+
+```{r}
+cvicu %>%
+    group_by(week) %>%
+    filter(week >= mdy("3/27/2016", tz = "US/Central")) %>%
+    arrange(week) %>%
+    summarize(not_collected = sum(not_collected),
+              num_levels = n()) %>%
+    qic(not_collected, x = week, n = num_levels, data = ., chart = "p", multiply = 100, xlab = "Week", ylab = "Percent of levels")
+    
+```
+
+```{r}
+cvicu %>%
+    group_by(pie.id, week) %>%
+    filter(week >= mdy("3/27/2016", tz = "US/Central")) %>%
+    summarize(untimely = sum(!appropriate),
+              num_levels = n()) %>%
+    mutate_at("untimely", funs(. >= 1)) %>%
+    group_by(week) %>%
+    arrange(week) %>%
+    summarize(untimely = sum(untimely),
+              num_patients = n()) %>%
+    qic(untimely, x = week, n = num_patients, data = ., chart = "p", multiply = 100, xlab = "Week", ylab = "Percent of Patients")
+    
+```
+
+```{r}
+cvicu %>%
+    group_by(week) %>%
+    arrange(week) %>%
+    summarize(untimely = sum(!appropriate),
+              num_levels = n()) %>%
+    qic(untimely, x = week, n = num_levels, data = ., chart = "u", multiply = 100, xlab = "Week", ylab = "Defects per 100 Levels")
+```
+
+
