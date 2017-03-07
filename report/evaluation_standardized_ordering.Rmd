@@ -22,6 +22,8 @@ library(qicharts)
 
 x <- dirr::get_rds("../data/tidy")
 
+end_date <- "2017-03-05"
+
 hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
 
 orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
@@ -90,10 +92,10 @@ weekly_requests <- orders_requests %>%
     group_by(week) %>%
     count() %>%
     rename(requests = n) %>%
-    filter(week != "2016-03-27", week != "2017-02-19")
+    filter(week != "2016-03-27", week != end_date)
 
 weekly_levels <- cvicu %>%
-    filter(week != "2016-03-27", week != "2017-02-19") %>%
+    filter(week != "2016-03-27", week != end_date) %>%
     group_by(week) %>%
     summarize(levels = n(),
              early_am = sum(early_am),
@@ -118,6 +120,41 @@ weekly_levels %>%
     geom_bar(stat = "identity") + 
     xlab("Order Type") +
     ylab("Change from Baseline (%)")
+```
+
+```{r}
+baseline <- weekly_levels %>%
+    # mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
+    filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
+    summarize_if(is.numeric, mean) %>%
+    gather(key, value)
+
+weekly_levels %>%
+    # mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
+    filter(week >= mdy("1/29/2017", tz = "US/Central")) %>%
+    gather(key, value, levels:requests) %>%
+    ggplot(aes(x = week, y = value)) +
+    geom_bar(stat = "identity") +
+    geom_hline(aes(yintercept = value), data = baseline) +
+    facet_wrap(~ key)
+```
+
+```{r}
+baseline <- weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
+    filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
+    summarize_if(is.numeric, mean) %>%
+    select(-levels) %>%
+    gather(key, value) 
+
+weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
+    filter(week >= mdy("1/29/2017", tz = "US/Central")) %>%
+    gather(key, value, early_am:requests) %>%
+    ggplot(aes(x = week, y = value)) +
+    geom_bar(stat = "identity") +
+    geom_hline(aes(yintercept = value), data = baseline) +
+    facet_wrap(~ key)
 ```
 
 ```{r}
@@ -170,6 +207,34 @@ knitr::kable(defects, digits = 3)
 ```
 
 ### Hour of Day
+
+```{r}
+cvicu %>%
+    group_by(pilot, hour) %>%
+    ggplot(aes(x = hour)) +
+    geom_bar() +
+    xlab("Hour") +
+    ylab("Number of Levels") +
+    facet_wrap(~ pilot) + 
+    coord_cartesian(xlim = c(0, 24)) +
+    scale_x_continuous(breaks = seq(0, 24, 6)) 
+```
+
+#### Number of Untimely Levels by Hour of Day
+
+```{r}
+cvicu %>%
+    group_by(pilot, hour) %>%
+    filter(!appropriate) %>%
+    # summarize_at("appropriate", funs(100 - (sum(.) / n() * 100))) %>%
+    ggplot(aes(x = hour)) +
+    geom_bar() +
+    xlab("Hour") +
+    ylab("Untimely Levels") +
+    facet_wrap(~ pilot) + 
+    coord_cartesian(xlim = c(0, 24)) +
+    scale_x_continuous(breaks = seq(0, 24, 6)) 
+```
 
 #### Untimely Levels as Percent of Total per Hour
 ```{r}
