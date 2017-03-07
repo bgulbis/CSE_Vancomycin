@@ -1,0 +1,128 @@
+\documentclass[]{tufte-handout}
+
+% ams
+\usepackage{amssymb,amsmath}
+
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \makeatletter
+  \@ifpackageloaded{fontspec}{}{\usepackage{fontspec}}
+  \makeatother
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+  \makeatletter
+  \@ifpackageloaded{soul}{
+     \renewcommand\allcapsspacing[1]{{\addfontfeature{LetterSpace=15}#1}}
+     \renewcommand\smallcapsspacing[1]{{\addfontfeature{LetterSpace=10}#1}}
+   }{}
+  \makeatother
+\fi
+
+% graphix
+\usepackage{graphicx}
+\setkeys{Gin}{width=\linewidth,totalheight=\textheight,keepaspectratio}
+
+% booktabs
+\usepackage{booktabs}
+
+% url
+\usepackage{url}
+
+% hyperref
+\usepackage{hyperref}
+
+% units.
+\usepackage{units}
+
+
+\setcounter{secnumdepth}{-1}
+
+% citations
+\usepackage{natbib}
+\bibliographystyle{plainnat}
+
+% pandoc syntax highlighting
+
+% longtable
+
+% multiplecol
+\usepackage{multicol}
+
+% strikeout
+\usepackage[normalem]{ulem}
+
+% morefloats
+\usepackage{morefloats}
+
+
+% tightlist macro required by pandoc >= 1.14
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% title / author / date
+\title{Assessment of Vancomycin Level Ordering Standardization}
+\author{Brian Gulbis, Heather Chipuk, Clyde Marquis, Sandy Young}
+\date{March 07, 2017}
+
+
+\begin{document}
+
+\maketitle
+
+
+
+
+\section{Intervention}\label{intervention}
+
+Beginning the week of January 29, 2017, a pilot was implemented to
+standardize the ordering of vancomycin levels in CVICU. Providers were
+asked to cease ordering vancomycin levels via the vancomycin request
+orderable, and to avoid using the \texttt{Early\ AM} option.
+
+\begin{verbatim}
+## Loading tidyverse: ggplot2
+## Loading tidyverse: tibble
+## Loading tidyverse: tidyr
+## Loading tidyverse: readr
+## Loading tidyverse: purrr
+## Loading tidyverse: dplyr
+\end{verbatim}
+
+\begin{verbatim}
+## Conflicts with tidy packages ----------------
+\end{verbatim}
+
+\begin{verbatim}
+## filter(): dplyr, stats
+## lag():    dplyr, stats
+\end{verbatim}
+
+\begin{verbatim}
+## 
+## Attaching package: 'lubridate'
+\end{verbatim}
+
+\begin{verbatim}
+## The following object is masked from 'package:base':
+## 
+##     date
+\end{verbatim}
+
+\begin{figure}
+\includegraphics{pilot_intervention_report_files/figure-latex/unnamed-chunk-2-1} \caption[Overall Changes from Baseline]{Overall Changes from Baseline}\label{fig:unnamed-chunk-2}
+\end{figure}
+
+\begin{figure}
+\includegraphics{pilot_intervention_report_files/figure-latex/unnamed-chunk-3-1} \caption[Changes on a Week-by-Week Basis]{Changes on a Week-by-Week Basis}\label{fig:unnamed-chunk-3}
+\end{figure}
+
+\begin{figure}
+\includegraphics{pilot_intervention_report_files/figure-latex/unnamed-chunk-4-1} \caption[Percent Changes on a Week-by-Week Basis]{Percent Changes on a Week-by-Week Basis}\label{fig:unnamed-chunk-4}
+\end{figure}
+
+
+
+\end{document}

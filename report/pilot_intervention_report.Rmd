@@ -1,0 +1,173 @@
+---
+title: "Vancomycin Level Ordering Standardization"
+subtitle: "January 29, 2017 to March 4, 2017"
+author: "Brian Gulbis, Heather Chipuk, Clyde Marquis, Sandy Young"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  tufte::tufte_handout:
+    latex_engine: pdflatex
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tufte)
+# invalidate cache when the tufte version changes
+knitr::opts_chunk$set(tidy = FALSE, echo = FALSE, cache.extra = packageVersion('tufte'))
+options(htmltools.dir.version = FALSE)
+```
+
+# Intervention
+
+Beginning the week of January 29, 2017, a pilot was implemented to standardize the ordering of vancomycin levels in CVICU. Providers were asked to cease ordering vancomycin levels via the vancomycin request orderable, and to avoid using the `Early AM` option. 
+
+```{r, message=FALSE}
+library(tidyverse)
+library(stringr)
+library(forcats)
+library(lubridate)
+library(tableone)
+library(pander)
+library(qicharts)
+
+x <- dirr::get_rds("../data/tidy")
+
+end_date <- "2017-03-05"
+
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+
+orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
+    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
+    mutate(not_collected = is.na(Collected) & is.na(lab.result),
+           location = coalesce(event.unit, order.unit),
+           month = floor_date(detail.datetime, unit = "month"),
+           week = floor_date(detail.datetime, unit = "week"),
+           day = wday(detail.datetime, label = TRUE, abbr = FALSE),
+           hour = hour(detail.datetime),
+           exceed_2hr = abs(collect_detail_diff) > 120,
+           pilot = detail.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    dmap_at(c("timely120", "timely60", "appropriate"), ~ coalesce(.x, FALSE))
+
+cvicu <- orders_levels %>%
+    filter(location == "HH CVICU",
+           month != "2016-03-01") 
+
+collected <- cvicu %>%
+    filter(!is.na(Collected)) %>%
+    group_by(pilot) %>%
+    summarize(collected = n(),
+              timely = sum(appropriate, na.rm = TRUE),
+              early = sum(early, na.rm = TRUE),
+              late = sum(late, na.rm = TRUE),
+              late_2hr = sum(exceed_2hr, na.rm = TRUE)) 
+
+not_done <- cvicu %>%
+    filter(is.na(Collected),
+           is.na(lab.result)) %>%
+    group_by(pilot) %>%
+    count %>%
+    rename(not_done = n)
+
+requests <- orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           order.datetime > mdy("3/31/2016", tz = "US/Central")) %>%
+    mutate(pilot = order.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    group_by(pilot) %>%
+    count %>%
+    rename(requests = n) 
+
+early_am <- orders_early_am %>%
+    filter(order.unit == "HH CVICU",
+           order.datetime > mdy("3/31/2016", tz = "US/Central")) %>%
+    mutate(pilot = order.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    group_by(pilot) %>%
+    count() %>%
+    rename(early_am = n) 
+
+totals_cvicu <- left_join(collected, not_done, by = "pilot") %>%
+    left_join(requests, by = "pilot") %>%
+    left_join(early_am, by = "pilot") %>%
+    mutate(total = collected + not_done,
+           defects = total - timely)
+
+weekly_requests <- orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           is.na(cancel.datetime),
+           !is.na(action.provider.role)) %>%
+    mutate(week = floor_date(request.datetime, unit = "week")) %>%
+    group_by(week) %>%
+    count() %>%
+    rename(requests = n) %>%
+    filter(week != "2016-03-27", week != end_date)
+
+weekly_levels <- cvicu %>%
+    filter(week != "2016-03-27", week != end_date) %>%
+    group_by(week) %>%
+    summarize(levels = n(),
+             early_am = sum(early_am),
+             appropriate = sum(appropriate),
+             uncollected = sum(not_collected)) %>%
+    full_join(weekly_requests, by = "week") %>%
+    dmap_at("requests", ~ coalesce(.x, 0L))
+
+```
+
+# Results
+
+```{r, fig.cap="Overall Changes from Baseline"}
+weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
+    mutate(pilot = ymd(week, tz = "US/Central") >= mdy("1/29/2017", tz = "US/Central")) %>%
+    group_by(pilot) %>%
+    summarize_if(is.numeric, mean) %>%
+    gather(key, value, early_am:requests) %>%
+    select(-levels) %>%
+    spread(pilot, value) %>%
+    rename(baseline = `FALSE`, pilot = `TRUE`) %>%
+    mutate(change = (pilot / baseline * 100) - 100) %>%
+    ggplot(aes(x = key, y = change)) +
+    geom_bar(stat = "identity") + 
+    xlab("Order Type") +
+    ylab("Change from Baseline (%)") +
+    theme_bw()
+```
+
+```{r, fig.cap="Changes on a Week-by-Week Basis"}
+baseline <- weekly_levels %>%
+    filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
+    summarize_if(is.numeric, mean) %>%
+    gather(key, value)
+
+weekly_levels %>%
+    filter(week >= mdy("1/29/2017", tz = "US/Central")) %>%
+    gather(key, value, levels:requests) %>%
+    ggplot(aes(x = week, y = value)) +
+    geom_bar(stat = "identity") +
+    geom_hline(aes(yintercept = value), data = baseline) +
+    facet_wrap(~ key) +
+    xlab("Week") +
+    ylab("Number") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+```{r, fig.cap="Percent Changes on a Week-by-Week Basis"}
+baseline <- weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels * 100)) %>%
+    filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
+    summarize_if(is.numeric, mean) %>%
+    select(-levels) %>%
+    gather(key, value) 
+
+weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels * 100)) %>%
+    filter(week >= mdy("1/29/2017", tz = "US/Central")) %>%
+    gather(key, value, early_am:requests) %>%
+    ggplot(aes(x = week, y = value)) +
+    geom_bar(stat = "identity") +
+    geom_hline(aes(yintercept = value), data = baseline) +
+    facet_wrap(~ key) +
+    xlab("Week") +
+    ylab("Percent") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
