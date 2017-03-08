@@ -1,6 +1,5 @@
 ---
 title: "Vancomycin Level Ordering Standardization"
-subtitle: "January 29, 2017 to March 4, 2017"
 author: "Brian Gulbis, Heather Chipuk, Clyde Marquis, Sandy Young"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
@@ -18,17 +17,18 @@ options(htmltools.dir.version = FALSE)
 
 # Intervention
 
-Beginning the week of January 29, 2017, a pilot was implemented to standardize the ordering of vancomycin levels in CVICU. Providers were asked to cease ordering vancomycin levels via the `Vancomycin Request` orderable, and to avoid using the `Early AM` option. 
+Beginning the week of January 29, 2017, a pilot was implemented to standardize the ordering of vancomycin levels in CVICU. Providers were asked to cease ordering vancomycin levels via the Vancomycin Request orderable, and to avoid using the Early AM option. 
 
-# Goal
+# Objective
 
-The goal of the intervention was to ensure that all orders for vancomycin levels were actual lab orders with a specific date and time for collection. `r margin_note('A level is timely if it is collected within 60 minutes of the scheduled collection time.')` The anticipated result of these changes was an increase in the percent of vancomycin levels which were collected in a timely manner. 
+The objective of the intervention was to ensure that all orders for vancomycin levels were actual lab orders with a specific date and time for collection. `r margin_note('A level is considered timely if it is collected within 60 minutes of the scheduled collection time.')` The overall goal of the project is to increase the percent of vancomycin levels which are collected in a timely manner. 
 
 ```{r, message=FALSE}
 library(tidyverse)
 library(stringr)
 library(forcats)
 library(lubridate)
+library(ggthemes)
 
 x <- dirr::get_rds("../data/tidy")
 
@@ -113,6 +113,8 @@ weekly_levels <- cvicu %>%
 
 # Results
 
+The following pilot results were obtained between January 29, 2017 and March 4, 2017.
+
 ```{r, fig.cap="Percent change in outcomes following pilot intervention relative to baseline period."}
 weekly_levels %>%
     mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
@@ -123,19 +125,21 @@ weekly_levels %>%
     select(-levels) %>%
     spread(pilot, value) %>%
     rename(baseline = `FALSE`, pilot = `TRUE`) %>%
-    mutate(change = (pilot / baseline * 100) - 100) %>%
+    mutate(change = round((pilot / baseline * 100) - 100, 0)) %>%
     dmap_at("key", factor, levels = c("early_am", "requests", "appropriate", "uncollected")) %>%
     ggplot(aes(x = key, y = change)) +
-    geom_bar(stat = "identity") + 
+    geom_bar(stat = "identity", width = 0.75) + 
     scale_x_discrete("", labels = c("Early AM", "Requests", "Timely", "Uncollected")) +
-    ylab("Change (%)") +
-    theme_bw() +
-    theme(axis.ticks.x = element_blank(), axis.ticks.y = element_blank(), panel.grid.major.x = element_blank(), panel.border = element_blank())
+    scale_y_continuous("Change (%)", limits = c(-55, 80), breaks = seq(-50, 75, 25)) +
+    # theme_tufte() +
+    # theme(axis.ticks.x = element_blank())
+    theme_bw(base_family = "serif", base_size = 11) +
+    theme(axis.ticks = element_blank(), axis.line = element_blank(), panel.grid.major.x = element_blank(), panel.border = element_blank())
 ```
 
-During the pilot period, there was a decrease in the number of vancomycin levels ordered using Early AM. There was a slight increase the number of Vancomycin Requests, however, this was primarily the result of an increase in a single week. The percent of timely levels was relatively steady throughout the pilot period, while there was a consistent increase in the percent of uncollected levels.
+During the pilot period, there was a decrease in the number of vancomycin levels ordered for Early AM. Additionally, there was a large increase in the percent of uncollected levels. The percent of orders by Vancomycin Request and the percent of timely levels were relatively unchanged throughout the pilot period.
 
-```{r, fig.cap="Percent change in weekly outcomes relative to the weekly mean during the baseline period."}
+```{r, fig.cap="Percent change in weekly outcomes relative to the weekly mean during the baseline period.", fig.height=4}
 baseline <- weekly_levels %>%
     mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels * 100)) %>%
     filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
@@ -156,7 +160,7 @@ weekly_levels %>%
     facet_wrap(~ key, labeller = labeller(key = c(early_am = "Early AM", requests = "Requests", appropriate = "Timely", uncollected = "Uncollected"))) +
     xlab("Week Beginning") +
     ylab("Change (%)") +
-    theme_bw() +
+    theme_bw(base_family = "serif", base_size = 11) +
     theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.ticks.y = element_blank(), panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(), panel.border = element_blank(), strip.background = element_blank())
 ```
 
@@ -179,11 +183,13 @@ weekly_levels %>%
     ggplot(aes(x = week, y = change, fill = key)) +
     geom_bar(stat = "identity", position = "dodge") +
     # facet_wrap(~ key, labeller = labeller(key = c(early_am = "Early AM Orders", requests = "Request Orders", appropriate = "Timely Collection", uncollected = "Uncollected"))) +
-    scale_fill_brewer(name = "", labels = c("Early AM", "Request", "Timely", "Uncollected"), palette = "Paired") +
+    scale_fill_few("medium", name = "", labels = c("Early AM", "Request", "Timely", "Uncollected")) +
     xlab("") +
     ylab("Change (%)") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.ticks.y = element_blank(), panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(), panel.border = element_blank(), legend.position = "bottom")
+    # theme_tufte()
+    theme_few()
+    # theme_bw() +
+    # theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.ticks.y = element_blank(), panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(), panel.border = element_blank(), legend.position = "bottom")
 ```
 
 ```{r, eval=FALSE, fig.cap="Weekly number of outcomes during the pilot period. For comparison, the weekly mean during the baseline period is indicated by the horizontal line."}
@@ -207,7 +213,11 @@ weekly_levels %>%
     theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.ticks.y = element_blank(), panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(), panel.border = element_blank(), strip.background = element_blank())
 ```
 
-```{r, fig.cap="Number of vancomycin levels ordered during the pilot period. For comparison, the weekly mean during the baseline period is indicated by the horizontal line.", fig.margin=TRUE}
+# Summary 
+
+There has been a consistent decrease in the percent of Early AM orders during this period, which was one of the goals of the pilot. The percent of orders by Vancomycin Request were mostly decreased throughout the pilot period, except during the week of February 20, 2017. It is important to note that there were far fewer vancomycin levels ordered during this week than usual, and this may explain the dramatic increase in percent of Vancomycin Requests observed during this week.   
+
+```{r, fig.cap="Number of weekly vancomycin levels ordered during the pilot period. For comparison, the weekly mean during the baseline period is indicated by the horizontal line.", fig.margin=TRUE}
 baseline <- weekly_levels %>%
     filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
     summarize_if(is.numeric, mean) %>%
@@ -222,11 +232,11 @@ weekly_levels %>%
     geom_bar(stat = "identity") +
     geom_hline(aes(yintercept = value), data = baseline) +
     xlab("Week Beginning") +
-    ylab("Number") +
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 45, hjust = 1), axis.ticks.y = element_blank(), panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(), panel.border = element_blank(), strip.background = element_blank())
+    ylab("Number of Levels") +
+    theme_tufte() +
+    theme(axis.ticks.x = element_blank())
+    # theme_bw(base_family = "serif", base_size = 11) +
+    # theme(axis.ticks = element_blank(), panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(), panel.border = element_blank())
 ```
 
-There has been a consistent decrease in the percent of Early AM orders during the pilot. The percent of orders by Vancomycin Request decreased throughout the pilot period with the exception of a significant increase during the week of February 20, 2017. It should be noted that there much fewer vancomycin levels ordered during this week, which may be skewing the percent change.   
-
-The percent of timely levels has remained relatively stable from week-to-week throughout the pilot. There has been an unexpected increase in the percent of uncollected levels each week during the pilot, with no obvious explanation.
+The percent of timely levels remained relatively stable from week-to-week throughout the pilot. Lastly, there was an unexpected increase in the percent of uncollected levels during the pilot. This increase was observed during most weeks of the pilot, and there is no obvious explanation for this change.
