@@ -8,9 +8,8 @@ timing <- read_data("data/raw", "^timing") %>%
     # filter(order.unit %in% hvi)
 
 vanc_levels <- read_data("data/raw", "vanc_level") %>%
-    as.labs() %>%
-    rename(order.id = `Clinical Event Order ID`,
-           event.unit = `Nurse Unit of Clinical Event`) %>%
+    as.labs(extras = list("order.id" = "`Clinical Event Order ID`",
+                          "event.unit" = "`Nurse Unit of Clinical Event`")) %>%
     filter(!is.na(event.unit))
 
 orders <- bind_rows(timing["order.id"], vanc_levels["order.id"]) %>%
