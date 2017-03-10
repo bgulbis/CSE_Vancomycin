@@ -3,7 +3,7 @@ title: "Standardized Vancomycin Ordering"
 author: "Brian Gulbis, PharmD, BCPS"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
-  html_notebook:
+  html_document:
     code_folding: hide
     fig_caption: yes
 ---
