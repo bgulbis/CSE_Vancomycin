@@ -390,6 +390,23 @@ orders_levels %>%
     scale_y_continuous(breaks = c(-24, -12, 0, 12, 24))
 ```
 
+```{r, fig.cap="Correlation between order to scheduled collection and dispatch to scheduled collection", fig.height=6}
+orders_levels %>%
+    filter(dispatch_detail_diff < 1000,
+           # order.unit == "HH CVICU",
+           priority %in% c("Routine", "Stat", "Timed Study")) %>%
+           # priority == "Timed Study") %>%
+    # mutate(order_dispatch = order_detail_diff - order_dispatch_diff) %>%
+    ggplot(aes(x = order_detail_diff, y = dispatch_detail_diff)) +
+    geom_point(shape = 1) +
+    facet_wrap(~ priority, ncol = 1) +
+    scale_x_continuous(breaks = seq(-24, 96, 12)) +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    coord_cartesian(xlim = c(-24, 96)) +
+    labs(caption = "Data with order to scheduled collection of > 96 hours not shown")
+```
+
+
 ### Control Charts
 
 #### Timeliness - Before and After Pilot
