@@ -57,10 +57,14 @@ write_csv(orders_levels_summary, "../data/external/vancomycin_orders_levels_key_
 ```{r}
 df <- orders_levels %>%
     filter(priority %in% c("Routine", "Stat", "Timed Study"),
-           detail.datetime >= order.datetime)
+           detail.datetime >= order.datetime - hours(1))
+
+df2 <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime < order.datetime - hours(1))
 ```
 
-In all of the following figures, values where the scheduled collection time occured prior to the order time were removed. It is unclear exactly why the the scheduled collection time for these orders was back-dated to be prior to the time of ordering. 
+In all of the following figures, values where the scheduled collection time occured > 1 hour prior to the order time were removed (n = `r nrow(df2)`). It is unclear exactly why the the scheduled collection time for these orders was back-dated to be prior to the time of ordering. 
 
 ```{r, fig.cap="Histogram of difference between dispatch time and scheduled collection time"}
 plot_ly(df, split = ~priority) %>%
