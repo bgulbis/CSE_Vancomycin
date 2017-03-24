@@ -1,0 +1,328 @@
+---
+title: "Analysis of Vancomycin Dispatch Times"
+author: "Brian Gulbis"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  tint::tintHtml: 
+     self_contained: TRUE
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tint)
+# invalidate cache when the package version changes
+knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tint'), echo = FALSE, warning = FALSE)
+options(htmltools.dir.version = FALSE)
+# library(tufte)
+# invalidate cache when the tufte version changes
+# knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'), echo = FALSE, warning = FALSE)
+# options(htmltools.dir.version = FALSE)
+```
+
+```{r, message=FALSE}
+library(tidyverse)
+library(stringr)
+library(forcats)
+library(lubridate)
+library(tableone)
+library(pander)
+library(qicharts)
+library(ggthemes)
+library(broom)
+
+x <- dirr::get_rds("../data/tidy")
+
+end_date <- "2017-03-05"
+
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+
+orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
+    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
+    mutate(not_collected = is.na(Collected) & is.na(lab.result),
+           location = coalesce(event.unit, order.unit),
+           month = floor_date(detail.datetime, unit = "month"),
+           week = floor_date(detail.datetime, unit = "week"),
+           day = wday(detail.datetime, label = TRUE, abbr = TRUE),
+           hour = hour(detail.datetime),
+           day_order = wday(order.datetime, label = TRUE, abbr = TRUE),
+           hour_order = hour(order.datetime),
+           exceed_2hr = abs(collect_detail_diff) > 120,
+           pilot = detail.datetime >= mdy("1/30/2017", tz = "US/Central")) %>%
+    dmap_at(c("timely120", "timely60", "appropriate"), ~ coalesce(.x, FALSE))
+```
+
+```{r}
+write_csv(orders_levels, "../data/external/vancomycin_orders_levels.csv")
+
+orders_levels_summary <- select(orders_levels, pie.id, order.id, event.unit, order.unit, order.datetime, detail.datetime, dispatch.datetime = Dispatched, collected.datetime = Collected, order_detail_diff, order_dispatch_diff, dispatch_detail_diff, collect_detail_minutes = collect_detail_diff, timely = timely60, shift, day, hour, pilot)
+
+write_csv(orders_levels_summary, "../data/external/vancomycin_orders_levels_key_variables.csv")
+```
+
+```{r}
+theme_bg <- function(base_size = 11, base_family = "") {
+    theme_bw(base_family = base_family, base_size = base_size) +
+        theme(legend.background = element_blank(), 
+              legend.key = element_blank(), 
+              panel.background = element_blank(), 
+              panel.border = element_blank(), 
+              strip.background = element_blank(), 
+              plot.background = element_blank(), 
+              panel.grid = element_blank(),
+              axis.line = element_line(color = "grey85"),
+              axis.text = element_text(color = "grey35"),
+              axis.title = element_text(color = "grey35"),
+              axis.ticks = element_line(color = "grey35"))
+}
+```
+
+# Dispatch Times
+
+```{r}
+df <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime)
+```
+
+In all of the following figures, values where the scheduled collection time occured prior to the order time were removed. It is unclear exactly why the the scheduled collection time for these orders was back-dated to be prior to the time of ordering. 
+
+```{r, fig.cap="Histogram of difference between dispatch time and scheduled collection time"}
+ggplot(df, aes(x = dispatch_detail_diff)) +
+    geom_histogram(binwidth = 1, color = "grey85") +
+    xlab("Time (Hours)") +
+    ylab("Count") +
+    facet_wrap(~ priority) +
+    scale_x_continuous(breaks = seq(-24, 48, 12)) +
+    theme_bg()
+```
+
+```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time in all HVI units"}
+ggplot(df, aes(x = priority, y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    geom_hline(yintercept = 0, color = "grey85") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) + 
+    xlab("Collection Priority") +
+    ylab("Time (Hours)") +
+    theme_bg() +
+    theme(axis.ticks.x = element_blank())
+```
+
+```{r}
+x <- tidy(summary(df$dispatch_detail_diff))
+
+knitr::kable(x, caption = "Summary measures for the time from dispatch to scheduled collection")
+```
+
+```{r}
+df %>%
+    group_by(priority) %>%
+    do(tidy(summary(.$dispatch_detail_diff))) %>%
+    knitr::kable(caption = "Summary measures for the time from dispatch to scheduled collection by collection priority")
+```
+
+```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by collection day of week"}
+ggplot(df, aes(x = day, y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    geom_hline(yintercept = 0, color = "grey85") +
+    xlab("Day of Week when Collection Scheduled") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    # facet_wrap(~ priority, ncol = 1) + 
+    theme_bg() +
+    theme(axis.ticks.x = element_blank())
+```
+
+```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by collection day of week"}
+ggplot(df, aes(x = day_order, y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    geom_hline(yintercept = 0, color = "grey85") +
+    xlab("Day of Week when Collection Scheduled") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    # facet_wrap(~ priority, ncol = 1) + 
+    theme_bg() +
+    theme(axis.ticks.x = element_blank())
+```
+
+```{r, eval=FALSE, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by collection day of week"}
+ggplot(df, aes(x = day, y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    geom_hline(yintercept = 0, color = "grey85") +
+    xlab("Day of Week when Collection Scheduled") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    facet_wrap(~ priority, ncol = 1) + 
+    theme_bg() +
+    theme(axis.ticks.x = element_blank())
+```
+
+```{r, eval=FALSE, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by order day of week"}
+ggplot(df, aes(x = day_order, y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    geom_hline(yintercept = 0, color = "grey85") +
+    xlab("Day of Week when Ordered") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    facet_wrap(~ priority, ncol = 1) + 
+    theme_bg() +
+    theme(axis.ticks.x = element_blank())
+```
+
+```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by collection hour of day", fig.fullwidth=TRUE}
+orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime) %>%
+    ggplot(aes(x = factor(hour), y = dispatch_detail_diff)) +
+    geom_hline(yintercept = 0, color = "grey85") +
+    geom_boxplot() +
+    xlab("Hour of Day when Collection Scheduled") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    theme_bg()
+```
+
+```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by order hour of day", fig.fullwidth=TRUE}
+orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime) %>%
+    ggplot(aes(x = factor(hour_order), y = dispatch_detail_diff)) +
+    geom_hline(yintercept = 0, color = "grey85") +
+    geom_boxplot() +
+    xlab("Hour of Day when Ordered") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    theme_bg()
+```
+
+```{r, eval=FALSE, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by collection hour of day", fig.fullwidth=TRUE}
+orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime) %>%
+    ggplot(aes(x = factor(hour), y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    xlab("Hour of Day when Collection Scheduled") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    facet_wrap(~ priority, ncol = 1) + 
+    theme_bg()
+```
+
+```{r, eval=FALSE, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by order hour of day", fig.fullwidth=TRUE}
+orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime) %>%
+    ggplot(aes(x = factor(hour_order), y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    xlab("Hour of Day when Ordered") +
+    ylab("Time (Hours)") +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    facet_wrap(~ priority, ncol = 1) + 
+    theme_bg()
+```
+
+```{r}
+df <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime,
+           order_dispatch_diff <= 72) 
+```
+
+Labs ordered > 72 hours in advance of collection were removed. 
+
+```{r, fig.cap="Histogram of difference between order time and dispatch time"}
+ggplot(df, aes(x = order_dispatch_diff)) +
+    geom_histogram(binwidth = 1, color = "grey85") +
+    xlab("Time (Hours)") +
+    ylab("Count") +
+    facet_wrap(~ priority) +
+    scale_x_continuous(breaks = seq(-24, 72, 12)) +
+    theme_bg()
+```
+
+```{r, fig.cap="Distribution of difference between order time and dispatch time"}
+ggplot(df, aes(x = priority, y = order_dispatch_diff)) +
+    geom_boxplot() +
+    scale_y_continuous(breaks = seq(0, 72, 12)) +
+    theme_bg() +
+    theme(axis.ticks.x = element_blank())
+```
+
+```{r, fig.cap="Time between order to scheduled collection and order to dispatch. Data with order to scheduled collection of > 72 hours were removed. Values where the scheduled collection time was prior to the order time were removed."}
+ggplot(df, aes(x = order_detail_diff, y = order_dispatch_diff)) +
+    geom_point(shape = 1) +
+    scale_x_continuous("Collection Time (hours)", breaks = seq(0, 72, 12)) +
+    scale_y_continuous("Dispatch Time (hours)", breaks = seq(0, 72, 12)) +
+    coord_fixed() +
+    theme_bg()
+```
+
+There is a strong correlation between the time from order to scheduled collection and the time from order to dispatch.
+
+```{r}
+cor.test(~ order_detail_diff + order_dispatch_diff, df)
+```
+
+
+```{r, fig.cap="Time between order to scheduled collection and order to dispatch by collection priority"}
+ggplot(df, aes(x = order_detail_diff, y = order_dispatch_diff)) +
+    geom_point(shape = 1) +
+    facet_wrap(~ priority, nrow = 1) +
+    scale_x_continuous("Collection Time (hours)", breaks = seq(0, 72, 12)) +
+    scale_y_continuous("Dispatch Time (hours)", breaks = seq(0, 72, 12)) +
+    coord_fixed() +
+    theme_bg()
+```
+
+```{r, fig.cap="Time between order to scheduled collection and dispatch to scheduled collection"}
+ggplot(df, aes(x = order_detail_diff, y = dispatch_detail_diff)) +
+    geom_point(shape = 1) +
+    scale_x_continuous("Order Time (hours)", breaks = seq(0, 72, 12)) +
+    scale_y_continuous("Dispatch Time (hours)", breaks = seq(0, 36, 12)) +
+    coord_fixed() +
+    theme_bg()
+```
+
+There is little correlation between the time from order to scheduled collection and time from dispatch to scheduled collection.
+
+```{r}
+cor.test(~ order_detail_diff + dispatch_detail_diff, df)
+```
+
+```{r, fig.cap="Time between order to scheduled collection and dispatch to scheduled collection by collection priority", fig.fullwidth=TRUE}
+ggplot(df, aes(x = order_detail_diff, y = dispatch_detail_diff)) +
+    geom_point(shape = 1) +
+    facet_wrap(~ priority, nrow = 1) +
+    scale_x_continuous("Order Time (hours)", breaks = seq(0, 72, 12)) +
+    scale_y_continuous("Dispatch Time (hours)", breaks = seq(0, 36, 12)) +
+    coord_fixed() +
+    theme_bg()
+```
+
+```{r, fig.cap="Time between order to scheduled collection and dispatch to scheduled collection"}
+ggplot(df, aes(x = dispatch_detail_diff, y = collect_detail_diff / 60)) +
+    geom_hline(yintercept = 0, color = "grey85") +
+    geom_point(shape = 1) +
+    scale_x_continuous("Dispatch Time (hours)", breaks = seq(-24, 48, 12)) +
+    scale_y_continuous("Scheduled to Actual Collection (hours)", breaks = seq(-48, 96, 12)) +
+    # coord_fixed() +
+    coord_cartesian(ylim = c(-24, 72)) +
+    theme_bg()
+```
+
+There is no correlation between the amount of time prior to scheduled collection that the task dispatched and when the lab was actually collected.
+
+```{r}
+cor.test(~ dispatch_detail_diff + collect_detail_diff, df)
+```
+
+```{r, fig.cap="Time between order to scheduled collection and dispatch to scheduled collection by collection priority"}
+ggplot(df, aes(x = dispatch_detail_diff, y = collect_detail_diff / 60)) +
+    geom_hline(yintercept = 0, color = "grey85") +
+    geom_point(shape = 1) +
+    facet_wrap(~ priority, nrow = 1) +
+    scale_x_continuous("Dispatch Time (hours)", breaks = seq(-24, 48, 12)) +
+    scale_y_continuous("Scheduled to Actual Collection (hours)", breaks = seq(-48, 96, 12)) +
+    # coord_fixed() +
+    coord_cartesian(ylim = c(-24, 72)) +
+    theme_bg()
+```

@@ -4,6 +4,7 @@ library(tidyverse)
 library(stringr)
 library(lubridate)
 library(edwr)
+library(assertr)
 
 dirr::get_rds("data/tidy")
 
@@ -173,9 +174,16 @@ priority <- valid_details %>%
 
 # id <- concat_encounters(miss$order.id)
 
+check_detail_time <- function(x) {
+
+}
+
 orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
     left_join(request_times, by = c("pie.id", "order.id")) %>%
     left_join(priority, by = c("pie.id", "order.id")) %>%
+    # corrected data for rows with detail.datetime that had incorrect years
+    mutate(detail.datetime = if_else(detail.datetime < order.datetime - days(1), detail.datetime + years(1), detail.datetime)) %>%
+    verify(detail.datetime >= order.datetime - days(1)) %>%
     # left_join(order_comm, by = c("pie.id", "order.id")) %>%
     # filter(is.na(discontinue.datetime),
     #        is.na(cancel.datetime),
@@ -184,7 +192,7 @@ orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
     mutate(collect_detail_diff = as.numeric(difftime(Collected, detail.datetime, units = "mins")),
            order_detail_diff = as.numeric(difftime(detail.datetime, order.datetime, units = "hours")),
            order_dispatch_diff = as.numeric(difftime(Dispatched, order.datetime, units = "hours")),
-           dispatch_detail_diff = as.numeric(difftime(Dispatched, detail.datetime, units = "hours")),
+           dispatch_detail_diff = as.numeric(difftime(detail.datetime, Dispatched, units = "hours")),
            early_am = priority == "Routine" & is.na(freq),
            timely120 = abs(collect_detail_diff) <= 120,
            timely60 = abs(collect_detail_diff) <= 60,

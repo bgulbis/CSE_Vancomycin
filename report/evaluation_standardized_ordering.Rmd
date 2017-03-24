@@ -346,14 +346,34 @@ weekly_levels %>%
 
 ### Dispatch Time
 
-```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time"}
-orders_levels %>%
-    filter(dispatch_detail_diff < 1000,
-           order.unit == "HH CVICU", 
-           priority %in% c("Routine", "Stat", "Timed Study")) %>%
-    ggplot(aes(x = priority, y = dispatch_detail_diff)) +
+```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time in all HVI units. Values where the scheduled collection time was prior to the order time were removed."}
+df <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime)
+
+ggplot(df, aes(x = priority, y = dispatch_detail_diff)) +
     geom_boxplot() +
-    scale_y_continuous(breaks = c(-24, -12, 0, 12, 24))
+    scale_y_continuous(breaks = seq(-24, 24, 12)) + 
+    theme_bw()
+```
+
+```{r, fig.height=8, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by collection day of week in all HVI units. Values where the scheduled collection time was prior to the order time were removed."}
+ggplot(df, aes(x = day, y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    facet_wrap(~ priority, ncol = 1) + 
+    theme_bw()
+```
+
+```{r, fig.height=8, fig.cap="Distribution of the difference between dispatch time and scheduled collection time by collection hour of day in all HVI units. Values where the scheduled collection time was prior to the order time were removed."}
+orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime) %>%
+    ggplot(aes(x = factor(hour), y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    scale_y_continuous(breaks = seq(-24, 24, 12)) +
+    facet_wrap(~ priority, ncol = 1) + 
+    theme_bw()
 ```
 
 ```{r, fig.cap="Histogram of difference between dispatch time and scheduled collection time"}
@@ -379,31 +399,52 @@ orders_levels %>%
     scale_x_continuous(breaks = seq(-24, 24, 12))
 ```
 
-```{r, fig.cap="Distribution of difference between order time and dispatch time"}
-orders_levels %>%
-    filter(dispatch_detail_diff < 1000,
-           order.unit == "HH CVICU",
-           priority %in% c("Routine", "Stat", "Timed Study")) %>%
-    mutate(order_dispatch = order_detail_diff - order_dispatch_diff) %>%
-    ggplot(aes(x = priority, y = order_dispatch)) +
+```{r, fig.cap="Distribution of difference between order time and dispatch time. Data with order to scheduled collection of > 72 hours were removed. Values where scheduled collection time was prior to the order time were removed."}
+df <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime,
+           order_dispatch_diff <= 72) 
+
+ggplot(df, aes(x = priority, y = order_dispatch_diff)) +
     geom_boxplot() +
-    scale_y_continuous(breaks = c(-24, -12, 0, 12, 24))
+    scale_y_continuous(breaks = seq(0, 72, 12)) +
+    theme_bw() 
 ```
 
-```{r, fig.cap="Correlation between order to scheduled collection and dispatch to scheduled collection", fig.height=6}
-orders_levels %>%
-    filter(dispatch_detail_diff < 1000,
-           # order.unit == "HH CVICU",
-           priority %in% c("Routine", "Stat", "Timed Study")) %>%
-           # priority == "Timed Study") %>%
-    # mutate(order_dispatch = order_detail_diff - order_dispatch_diff) %>%
-    ggplot(aes(x = order_detail_diff, y = dispatch_detail_diff)) +
+```{r, fig.cap="Correlation between order to scheduled collection and order to dispatch. Data with order to scheduled collection of > 72 hours were removed. Values where the scheduled collection time was prior to the order time were removed."}
+ggplot(df, aes(x = order_detail_diff, y = order_dispatch_diff)) +
     geom_point(shape = 1) +
-    facet_wrap(~ priority, ncol = 1) +
-    scale_x_continuous(breaks = seq(-24, 96, 12)) +
-    scale_y_continuous(breaks = seq(-24, 24, 12)) +
-    coord_cartesian(xlim = c(-24, 96)) +
-    labs(caption = "Data with order to scheduled collection of > 96 hours not shown")
+    facet_wrap(~ priority, nrow = 1) +
+    scale_x_continuous("Time to Scheduled Collection (hours)", breaks = seq(0, 72, 12)) +
+    scale_y_continuous("Time to Dispatch (hours)", breaks = seq(0, 72, 12)) +
+    coord_fixed() +
+    theme_bw()
+```
+
+Correlation between time from order to scheduled collection and time from order to dispatch
+
+```{r}
+cor.test(~ order_detail_diff + order_dispatch_diff, df)
+```
+
+```{r, fig.cap="Correlation between order to scheduled collection and dispatch to scheduled collection. Data with order to scheduled collection of > 72 hours were removed. Values where the scheduled collection time was prior to the order time were removed."}
+ggplot(df, aes(x = order_detail_diff, y = dispatch_detail_diff)) +
+    geom_point(shape = 1) +
+    facet_wrap(~ priority, nrow = 1) +
+    scale_x_continuous("Time to Scheduled Collection (hours)", breaks = seq(0, 72, 12)) +
+    scale_y_continuous("Time to Dispatch (hours)", breaks = seq(-36, 0, 12)) +
+    coord_fixed() +
+    theme_bw()
+```
+
+Correlation between time from order to scheduled collection and time from dispatch to scheduled collection
+
+```{r}
+cor.test(~ order_detail_diff + dispatch_detail_diff, df)
+```
+
+```{r}
+df2 <- select(df, order.id, order_detail_diff, order_dispatch_diff, dispatch_detail_diff, day, hour)
 ```
 
 
