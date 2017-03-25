@@ -63,173 +63,239 @@ data_orders <- orders_levels %>%
 data_orders_backdated <- orders_levels %>%
     filter(priority %in% c("Routine", "Stat", "Timed Study"),
            detail.datetime < order.datetime - hours(1))
-
-data_orders_72hr_cutoff <- orders_levels %>%
-    filter(priority %in% c("Routine", "Stat", "Timed Study"),
-           detail.datetime >= order.datetime,
-           order_dispatch_diff <= 72) 
-```
-
-```{r}
-theme_bg <- function(base_size = 11, base_family = "") {
-    theme_bw(base_family = base_family, base_size = base_size) +
-        theme(legend.background = element_blank(), 
-              legend.key = element_blank(), 
-              legend.text = element_text(color = "grey35"),
-              panel.background = element_blank(), 
-              panel.border = element_blank(), 
-              strip.background = element_blank(), 
-              plot.background = element_blank(), 
-              panel.grid = element_blank(),
-              axis.line = element_line(color = "grey85"),
-              axis.text = element_text(color = "grey35"),
-              axis.title = element_text(color = "grey35"),
-              axis.ticks = element_line(color = "grey35"))
-}
 ```
 
 # Distribution
 
 In all of the following figures, values where the scheduled collection time occured > 1 hour prior to the order time were removed (n = `r nrow(data_orders_backdated)`). It is unclear exactly why the the scheduled collection time for these orders was back-dated to be prior to the time of ordering. 
 
-```{r, fig.cap="Histogram of difference between dispatch time and scheduled collection time"}
+```{r, fig.cap="Distribution of time from task dispatch to scheduled collection"}
 plot_ly(data_orders, x = ~dispatch_detail_diff) %>%
-    add_histogram(name = "Overall") %>%
-    add_histogram(split = ~interaction(future_order, priority)) %>%
-    layout(xaxis = list(title = "Time (Hours)", tickvals = seq(-24, 48, 6)))
+    add_histogram(name = "All") %>%
+    add_histogram(split = ~priority, visible = FALSE) %>%
+    add_histogram(split = ~future_order, visible = FALSE) %>%
+    layout(xaxis = list(title = "Time (Hours)"),
+           updatemenus = list(list(
+               y = 0.8, 
+               buttons = list(
+                   list(method = "restyle", args = list("visible", list(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)), label = "All"),
+                   list(method = "restyle", args = list("visible", list(FALSE, TRUE, TRUE, TRUE, FALSE, FALSE)), label = "Priority"),
+                   list(method = "restyle", args = list("visible", list(FALSE, FALSE, FALSE, FALSE, TRUE, TRUE)), label = "Timing")
+               ))
+           ))
+# tickvals = seq(-24, 48, 6)
 ```
 
 It is clear that Stat orders dispatch immediately, but Routine and Timed Study are much more variable, with most dispatching 1-3 hours before the scheduled collection time.
 
-```{r, fig.cap="Distribution of the difference between dispatch time and scheduled collection time in all HVI units"}
-plot_ly(data_orders, x = ~priority, y = ~dispatch_detail_diff, split = ~future_order) %>%
-    add_boxplot() %>%
-    layout(xaxis = list(title = ""), yaxis = list(title = "Time (Hours)", tickvals = seq(-24, 48, 6)))
+```{r, fig.cap="Distribution of time from task dispatch to scheduled collection"}
+plot_ly(data_orders, x = ~priority, y = ~dispatch_detail_diff) %>%
+    add_boxplot(name = "Overall") %>%
+    add_boxplot(split = ~future_order) %>%
+    layout(xaxis = list(title = "Collection Priority"), 
+           yaxis = list(title = "Time (Hours)"))
+# tickvals = seq(-24, 48, 3)
 ```
 
 ```{r}
-x <- summary(data_orders$dispatch_detail_diff) %>%
-    tidy() %>%
-    mutate(category = "Overall") 
+x <- data_orders %>%
+    group_by(future_order) %>%
+    do(tidy(summary(.$dispatch_detail_diff))) %>%
+    mutate(category = "All") 
 
 y <- data_orders %>%
     group_by(future_order, priority) %>%
     do(tidy(summary(.$dispatch_detail_diff))) %>%
-    rename(category = future_order)
+    rename(category = priority)
 
-bind_rows(x, y) %>%
-    select(category, priority, everything()) %>%
+z <- summary(data_orders$dispatch_detail_diff) %>%
+    tidy() %>%
+    mutate(category = "All",
+           future_order = "All")
+
+bind_rows(x, y, z) %>%
+    select(type = future_order, category, everything()) %>%
+    arrange(type, category) %>%
     knitr::kable(digits = 3, caption = "Summary measures for the time from dispatch to scheduled collection")
 
 ```
 
 # Future Orders
 
-```{r, fig.cap="Distribution of dispatch time by day of week"}
+```{r, fig.cap="Distribution of time from task dispatch to scheduled collection by day of week"}
 data_orders %>%
     filter(future_order == "Future") %>%
     plot_ly(x = ~day, y = ~dispatch_detail_diff, split = ~priority) %>%
     add_boxplot() %>%
-    layout(xaxis = list(title = "Day of Week"), yaxis = list(title = "Time (Hours)", tickvals = seq(-24, 48, 6)))
+    layout(xaxis = list(title = "Day of Week"), yaxis = list(title = "Time (Hours)"))
 ```
 
 Day of week and hour of day are based on the scheduled collection time.
 
-```{r, fig.cap="Distribution of dispatch time by hour of day"}
+```{r, fig.cap="Distribution of time from task dispatch to scheduled collection by hour of day"}
 data_orders %>%
     filter(future_order == "Future") %>%
     plot_ly(x = ~hour, y = ~dispatch_detail_diff, split = ~priority) %>%
     add_boxplot() %>%
-    layout(xaxis = list(title = "Hour of Day", tickvals = seq(0, 23, 2)), yaxis = list(title = "Time (Hours)", tickvals = seq(-24, 48, 6)))
+    layout(xaxis = list(title = "Hour of Day", dtick = 2), yaxis = list(title = "Time (Hours)"))
 ```
 
-Labs ordered > 72 hours in advance of collection were removed. 
-
-```{r, fig.cap="Histogram of difference between order time and dispatch time"}
-data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
-    plot_ly(x = ~order_dispatch_diff, split = ~priority) %>%
-    add_histogram() %>%
-    layout(xaxis = list(title = "Time (Hours)", tickvals = seq(-24, 72, 6)))
+```{r, fig.cap="Distribution of time from task order to dispatch"}
+plot_ly(data_orders, x = ~order_dispatch_diff) %>%
+    add_histogram(name = "All") %>%
+    add_histogram(split = ~priority, visible = FALSE) %>%
+    add_histogram(split = ~future_order, visible = FALSE) %>%
+    layout(xaxis = list(title = "Time (Hours)"),
+           updatemenus = list(list(
+               y = 0.8, 
+               buttons = list(
+                   list(method = "restyle", args = list("visible", list(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)), label = "All"),
+                   list(method = "restyle", args = list("visible", list(FALSE, TRUE, TRUE, TRUE, FALSE, FALSE)), label = "Priority"),
+                   list(method = "restyle", args = list("visible", list(FALSE, FALSE, FALSE, FALSE, TRUE, TRUE)), label = "Timing")
+               ))
+           ))
 ```
 
-```{r, fig.cap="Distribution of difference between order time and dispatch time"}
-data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
-    plot_ly(x = ~priority, y = ~order_dispatch_diff) %>%
-    add_boxplot() %>%
-    layout(xaxis = list(title = "Collection Priority"), yaxis = list(title = "Time (Hours)", tickvals = seq(-24, 72, 6)))
+```{r, fig.cap="Distribution of time from task order to dispatch"}
+plot_ly(data_orders, x = ~priority, y = ~order_dispatch_diff) %>%
+    add_boxplot(name = "Overall") %>%
+    add_boxplot(split = ~future_order) %>%
+    layout(xaxis = list(title = "Collection Priority"), 
+           yaxis = list(title = "Time (Hours)"))
+```
+
+# Control Charts
+
+```{r, fig.cap="Time from dispatch until scheduled collection for Future Routine orders"}
+data_orders %>%
+    filter(priority == "Routine",
+           future_order == "Future") %>%
+    dmap_at("dispatch_detail_diff", ~ .x * 60) %>%
+    qic(y = dispatch_detail_diff, data = ., chart = "i")
+```
+
+```{r, fig.cap="Time from dispatch until scheduled collection for Future Stat orders"}
+data_orders %>%
+    filter(priority == "Stat",
+           future_order == "Future") %>%
+    dmap_at("dispatch_detail_diff", ~ .x * 60) %>%
+    qic(y = dispatch_detail_diff, data = ., chart = "i")
+```
+
+```{r, fig.cap="Time from dispatch until scheduled collection for Future Timed Study orders"}
+data_orders %>%
+    filter(priority == "Timed Study",
+           future_order == "Future") %>%
+    dmap_at("dispatch_detail_diff", ~ .x * 60) %>%
+    qic(y = dispatch_detail_diff, data = ., chart = "i")
 ```
 
 # Correlation Assessment
 
-```{r, fig.cap="Time between order to scheduled collection and order to dispatch for future orders. Data with order to scheduled collection of > 72 hours were removed. Values where the scheduled collection time was prior to the order time were removed."}
-data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
-    plot_ly() %>%
-    add_markers(x = ~order_detail_diff, y = ~order_dispatch_diff, color = ~priority, marker = list(symbol = "circle-open")) %>%
-    layout(xaxis = list(title = "Time from Order to Collection (hours)", tickvals = seq(0, 72, 12)), yaxis = list(title = "Time from Order to Dispatch (hours)", tickvals = seq(0, 72, 12)))
+```{r, fig.cap="Time between order to scheduled collection and order to dispatch for future orders"}
+data_orders %>%
+    plot_ly(x = ~order_detail_diff, y = ~order_dispatch_diff, color = ~priority, split = ~future_order) %>%
+    add_markers(marker = list(symbol = "circle-open")) %>%
+    layout(xaxis = list(title = "Time from Order to Collection (hours)", range = c(-3, 48)), 
+           yaxis = list(title = "Time from Order to Dispatch (hours)", range = c(-3, 48)))
 ```
 
 There is a strong correlation between the time from order to scheduled collection and the time from order to dispatch.
 
 ```{r}
-data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
+x <- data_orders %>%
+    group_by(future_order) %>%
+    do(tidy(cor.test(~ order_detail_diff + order_dispatch_diff, data = .))) %>%
+    mutate(category = "All") 
+
+y <- data_orders %>%
+    group_by(future_order, priority) %>%
+    do(tidy(cor.test(~ order_detail_diff + order_dispatch_diff, data = .))) %>%
+    rename(category = priority)
+
+z <- data_orders %>%
     cor.test(~ order_detail_diff + order_dispatch_diff, data = .) %>%
     tidy() %>%
+    mutate(category = "All",
+           future_order = "All")
+
+bind_rows(x, y, z) %>%
+    select(type = future_order, category, everything()) %>%
+    arrange(type, category) %>%
     knitr::kable(digits = 3, caption = "Correlation between the time from order to scheduled collection and the time from order to dispatch")
 ```
 
 ```{r, fig.cap="Time between order to scheduled collection and dispatch to scheduled collection"}
-data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
-    plot_ly() %>%
-    add_markers(x = ~order_detail_diff, y = ~dispatch_detail_diff, color = ~priority, marker = list(symbol = "circle-open")) %>%
-    layout(xaxis = list(title = "Time from Order to Collection (hours)", tickvals = seq(0, 72, 12)), yaxis = list(title = "Time from Dispatch to Collection (hours)", tickvals = seq(0, 72, 6)))
+data_orders %>%
+    plot_ly(x = ~order_detail_diff, y = ~dispatch_detail_diff, color = ~priority, split = ~future_order) %>%
+    add_markers(marker = list(symbol = "circle-open")) %>%
+    layout(xaxis = list(title = "Time from Order to Collection (hours)", range = c(-3, 48)), 
+           yaxis = list(title = "Time from Dispatch to Collection (hours)", range = c(-3, 24)))
 ```
 
 There is little correlation between the time from order to scheduled collection and time from dispatch to scheduled collection. This suggests that the dispatch time is triggered by the scheduled collection time, regardless of how far in advance the lab is ordered, with the exception of Stat orders which dispatch immediately.
 
 ```{r}
-data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
+x <- data_orders %>%
+    group_by(future_order) %>%
+    do(tidy(cor.test(~ order_detail_diff + dispatch_detail_diff, data = .))) %>%
+    mutate(category = "All") 
+
+y <- data_orders %>%
+    group_by(future_order, priority) %>%
+    do(tidy(cor.test(~ order_detail_diff + dispatch_detail_diff, data = .))) %>%
+    rename(category = priority)
+
+z <- data_orders %>%
     cor.test(~ order_detail_diff + dispatch_detail_diff, data = .) %>%
     tidy() %>%
+    mutate(category = "All",
+           future_order = "All")
+
+bind_rows(x, y, z) %>%
+    select(type = future_order, category, everything()) %>%
+    arrange(type, category) %>%
     knitr::kable(digits = 3, caption = "Correlation between the time from order to scheduled collection and time from dispatch to scheduled collection")
 ```
 
-```{r, fig.cap="Time between dispatch to scheduled collection and scheduled to actual collection for future orders"}
-data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
-    plot_ly() %>%
-    add_markers(x = ~dispatch_detail_diff, y = ~collect_detail_diff / 60, color = ~priority, marker = list(symbol = "circle-open")) %>%
-    layout(xaxis = list(title = "Time from Dispatch to Collection (hours)", tickvals = seq(0, 72, 6)), yaxis = list(title = "Time from Scheduled to Actual Collection (hours)", tickvals = seq(-48, 120, 12)))
+```{r, fig.cap="Time between dispatch to scheduled collection and scheduled to actual collection"}
+data_orders %>%
+    plot_ly(x = ~dispatch_detail_diff, y = ~collect_detail_diff / 60, color = ~priority, split = ~future_order) %>%
+    add_markers(marker = list(symbol = "circle-open")) %>%
+    layout(xaxis = list(title = "Time from Dispatch to Collection (hours)", range = c(-3, 24)), 
+           yaxis = list(title = "Time from Scheduled to Actual Collection (hours)", range = c(-12, 24)))
+# x-tickvals = seq(0, 72, 6)
+# y-tickvals = seq(-48, 120, 12)
 ```
 
 There is no correlation between the amount of time prior to scheduled collection that the task dispatched and when the lab was actually collected.
 
 ```{r}
-x <- data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
-    cor.test(~ dispatch_detail_diff + collect_detail_diff, data = .) %>%
-    tidy() %>%
-    mutate(category = "Overall") 
+x <- data_orders %>%
+    group_by(future_order) %>%
+    do(tidy(cor.test(~ dispatch_detail_diff + collect_detail_diff, data = .))) %>%
+    mutate(category = "All") 
 
-y <- data_orders_72hr_cutoff %>%
-    filter(future_order == "Future") %>%
-    group_by(priority) %>%
+y <- data_orders %>%
+    group_by(future_order, priority) %>%
     do(tidy(cor.test(~ dispatch_detail_diff + collect_detail_diff, data = .))) %>%
     rename(category = priority)
 
-bind_rows(x, y) %>%
-    select(category, everything()) %>%
+z <- data_orders %>%
+    cor.test(~ dispatch_detail_diff + collect_detail_diff, data = .) %>%
+    tidy() %>%
+    mutate(category = "All",
+           future_order = "All")
+
+bind_rows(x, y, z) %>%
+    select(type = future_order, category, everything()) %>%
+    arrange(type, category) %>%
     knitr::kable(digits = 3, caption = "Correlation between the amount of time prior to scheduled collection that the task dispatched and when the lab was actually collected")
 ```
 
 # Back-Dated Orders
 
-```{r}
+```{r, fig.cap="Provider role that ordered back-dated levels"}
 data_orders_backdated %>%
     dmap_at("action.provider.role", fct_infreq) %>%
     count(action.provider.role) %>%
@@ -238,23 +304,13 @@ data_orders_backdated %>%
     layout(yaxis = list(title = ""), margin = list(l = 240))
 ```
 
-```{r}
+```{r, fig.cap="Order type used for back-dated levels"}
 data_orders_backdated %>%
     dmap_at("action.comm", fct_infreq) %>%
     count(action.comm) %>%
     plot_ly() %>%
     add_bars(y = ~n, x = ~action.comm) %>%
     layout(xaxis = list(title = "Order Type"), yaxis = list(title = "Count"))
-```
-
-# Control Charts
-
-```{r, fig.cap="Time from dispatch until scheduled collection for Timed Study orders"}
-data_orders_72hr_cutoff %>%
-    filter(priority == "Timed Study",
-           future_order == "Future") %>%
-    dmap_at("dispatch_detail_diff", ~ .x * 60) %>%
-    qic(y = dispatch_detail_diff, data = ., chart = "i")
 ```
 
 # Future Orders
@@ -290,12 +346,19 @@ now_timed <- order_actions %>%
 
 ```
 
-```{r, fig.cap="Orders for future labs by each order priority. Future labs considered those > 1 hour from the time of ordering."}
+```{r, fig.cap="Orders for future labs by each order priority. Future labs are considered those > 1 hour from the time of ordering."}
+x <- data_orders %>%
+    dmap_at("future_order", ~ .x == "Future") %>%
+    group_by(priority) %>%
+    summarize_at("future_order", mean)
+
 data_orders %>%
     plot_ly(x = ~priority, split = ~future_order) %>%
     add_histogram() %>%
     layout(xaxis = list(title = "Order Priority"))
 ```
+
+A large number of Routine orders (`r round(x$future_order[x$priority == "Routine"] * 100, 0)`%) were actually intended as future timed orders. 
 
 ```{r, fig.cap="Provider role placing future orders using Routine or Stat"}
 # who is placing future orders using routine / stat
