@@ -29,6 +29,7 @@ x <- dirr::get_rds("../data/tidy")
 end_date <- "2017-03-05"
 
 hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+# hvi <- "HH CVICU"
 
 orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
     filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
@@ -58,7 +59,8 @@ write_csv(orders_levels_summary, "../data/external/vancomycin_orders_levels_key_
 ```{r data_sets}
 data_orders <- orders_levels %>%
     filter(priority %in% c("Routine", "Stat", "Timed Study"),
-           detail.datetime >= order.datetime - hours(1))
+           detail.datetime >= order.datetime - hours(1)) %>%
+    mutate(priority = if_else(early_am, "Early AM", priority))
 
 data_orders_backdated <- orders_levels %>%
     filter(priority %in% c("Routine", "Stat", "Timed Study"),
@@ -78,9 +80,9 @@ plot_ly(data_orders, x = ~dispatch_detail_diff) %>%
            updatemenus = list(list(
                y = 0.8, 
                buttons = list(
-                   list(method = "restyle", args = list("visible", list(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)), label = "All"),
-                   list(method = "restyle", args = list("visible", list(FALSE, TRUE, TRUE, TRUE, FALSE, FALSE)), label = "Priority"),
-                   list(method = "restyle", args = list("visible", list(FALSE, FALSE, FALSE, FALSE, TRUE, TRUE)), label = "Timing")
+                   list(method = "restyle", args = list("visible", c(list(TRUE), as.list(rep(FALSE, times = 6)))), label = "All"),
+                   list(method = "restyle", args = list("visible", c(list(FALSE), as.list(rep(TRUE, times = 4)), list(FALSE, FALSE))), label = "Priority"),
+                   list(method = "restyle", args = list("visible", c(list(FALSE), as.list(rep(FALSE, times = 4)), list(TRUE, TRUE))), label = "Timing")
                ))
            ))
 # tickvals = seq(-24, 48, 6)
@@ -149,9 +151,9 @@ plot_ly(data_orders, x = ~order_dispatch_diff) %>%
            updatemenus = list(list(
                y = 0.8, 
                buttons = list(
-                   list(method = "restyle", args = list("visible", list(TRUE, FALSE, FALSE, FALSE, FALSE, FALSE)), label = "All"),
-                   list(method = "restyle", args = list("visible", list(FALSE, TRUE, TRUE, TRUE, FALSE, FALSE)), label = "Priority"),
-                   list(method = "restyle", args = list("visible", list(FALSE, FALSE, FALSE, FALSE, TRUE, TRUE)), label = "Timing")
+                   list(method = "restyle", args = list("visible", c(list(TRUE), as.list(rep(FALSE, times = 6)))), label = "All"),
+                   list(method = "restyle", args = list("visible", c(list(FALSE), as.list(rep(TRUE, times = 4)), list(FALSE, FALSE))), label = "Priority"),
+                   list(method = "restyle", args = list("visible", c(list(FALSE), as.list(rep(FALSE, times = 4)), list(TRUE, TRUE))), label = "Timing")
                ))
            ))
 ```
@@ -165,6 +167,14 @@ plot_ly(data_orders, x = ~priority, y = ~order_dispatch_diff) %>%
 ```
 
 # Control Charts
+
+```{r, fig.cap="Time from dispatch until scheduled collection for Future Early AM orders"}
+data_orders %>%
+    filter(priority == "Early AM",
+           future_order == "Future") %>%
+    dmap_at("dispatch_detail_diff", ~ .x * 60) %>%
+    qic(y = dispatch_detail_diff, data = ., chart = "i")
+```
 
 ```{r, fig.cap="Time from dispatch until scheduled collection for Future Routine orders"}
 data_orders %>%
@@ -209,6 +219,7 @@ x <- data_orders %>%
     mutate(category = "All") 
 
 y <- data_orders %>%
+    filter(!(future_order == "Now" & priority == "Early AM")) %>%
     group_by(future_order, priority) %>%
     do(tidy(cor.test(~ order_detail_diff + order_dispatch_diff, data = .))) %>%
     rename(category = priority)
@@ -242,6 +253,7 @@ x <- data_orders %>%
     mutate(category = "All") 
 
 y <- data_orders %>%
+    filter(!(future_order == "Now" & priority == "Early AM")) %>%
     group_by(future_order, priority) %>%
     do(tidy(cor.test(~ order_detail_diff + dispatch_detail_diff, data = .))) %>%
     rename(category = priority)
@@ -277,6 +289,7 @@ x <- data_orders %>%
     mutate(category = "All") 
 
 y <- data_orders %>%
+    filter(!(future_order == "Now" & priority == "Early AM")) %>%
     group_by(future_order, priority) %>%
     do(tidy(cor.test(~ dispatch_detail_diff + collect_detail_diff, data = .))) %>%
     rename(category = priority)
@@ -313,7 +326,7 @@ data_orders_backdated %>%
     layout(xaxis = list(title = "Order Type"), yaxis = list(title = "Count"))
 ```
 
-# Future Orders
+# Now vs. Future Orders
 
 ```{r eval=FALSE}
 # use this to identify specific individuals who placed the orders
@@ -321,11 +334,13 @@ data_orders_backdated %>%
 library(edwr)
 x <- data_orders %>%
     filter(priority == "Routine",
-           future_order == "Future") 
+           future_order == "Future",
+           !early_am) 
 
 y <- data_orders %>%
     filter(priority == "Timed Study",
-           future_order == "Now")
+           future_order == "Now",
+           !early_am)
 
 order_actions <- read_data("../data/raw", "action") %>%
     as.order_action() 
@@ -348,17 +363,19 @@ now_timed <- order_actions %>%
 
 ```{r, fig.cap="Orders for future labs by each order priority. Future labs are considered those > 1 hour from the time of ordering."}
 x <- data_orders %>%
+    # filter(!early_am) %>%
     dmap_at("future_order", ~ .x == "Future") %>%
     group_by(priority) %>%
     summarize_at("future_order", mean)
 
 data_orders %>%
+    # filter(!early_am) %>%
     plot_ly(x = ~priority, split = ~future_order) %>%
     add_histogram() %>%
     layout(xaxis = list(title = "Order Priority"))
 ```
 
-A large number of Routine orders (`r round(x$future_order[x$priority == "Routine"] * 100, 0)`%) were actually intended as future timed orders. 
+Early AM orders are categorized as Routine. 
 
 ```{r, fig.cap="Provider role placing future orders using Routine or Stat"}
 # who is placing future orders using routine / stat
