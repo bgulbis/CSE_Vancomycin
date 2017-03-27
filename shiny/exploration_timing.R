@@ -65,13 +65,13 @@ cat_x <- c("location", "priority", "future_order", "appropriate", "not_collected
 
 ui <- fluidPage(
 
-    headerPanel("CSE Project Exploration"),
+    headerPanel("CS&E Project Exploration"),
     sidebarPanel(
         # sliderInput('sampleSize', 'Sample Size', min = 1, max = nrow(diamonds), value = 1000, step = 500, round = 0),
         selectInput("plot", "Plot Type", choices = plots, selected = "scatter"),
         selectInput('x', 'X', choices = times, selected = "dispatch_detail_diff"),
         selectInput('y', 'Y', choices = times, selected = "collect_detail_diff"),
-        sliderInput("bins", "Bin width", min = 0.25, max = 3, value = 1, step = 0.25, round = FALSE),
+        sliderInput("bins", "Bins", min = 1, max = 50, value = 20),
         selectInput('color', 'Color', choices = c(None = ".", group_by)),
         selectInput('split', 'Split', choices = c(None = ".", group_by)),
         selectInput('filter', 'Location Filter', choices = c(HVI = ".", hvi))
@@ -91,7 +91,7 @@ server <- function(input, output, session) {
         if (input$plot == "box") {
             updateSelectInput(session, "x", choices = cat_x)
         } else {
-            updateSelectInput(session, "x", choices = times)
+            updateSelectInput(session, "x", choices = times, selected = "dispatch_detail_diff")
         }
 
     })
@@ -105,7 +105,8 @@ server <- function(input, output, session) {
         }
     })
 
-    # output$xaxis <- renderText(as.name(input$x))
+    # output$xaxis <- renderText(length(dataset()[[input$x]]))
+    # output$xaxis <- renderText(input$bins)
     output$trendPlot <- renderPlotly({
 
         if (input$color == ".") {
@@ -125,11 +126,18 @@ server <- function(input, output, session) {
                 split = split)
 
         if (input$plot == "histogram") {
-            # xval <- dataset()[[input$x]]
+            xval <- dataset()[[input$x]]
+            xbins <- list(
+                start = min(xval),
+                end = max(xval),
+                size = (max(xval) - min(xval)) / input$bins
+            )
+
             add_histogram(p,
-                          x = interp(~x, x = as.name(input$x))
-                          # xbins = list(start = min(xval), end = max(xval), size = 1),
-                          # autobinx = FALSE
+                          x = interp(~x, x = as.name(input$x)),
+                          nbinsx = input$bins
+                          # autobinx = FALSE,
+                          # xbins = xbins
                           # xbins = list(size = interp(~bins, bins = as.name(input$bins)))
             )
         } else if (input$plot == "box") {
