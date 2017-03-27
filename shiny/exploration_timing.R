@@ -60,7 +60,7 @@ data_orders <- orders_levels %>%
 
 times <- c("collect_detail_diff", "order_detail_diff", "order_dispatch_diff", "dispatch_detail_diff")
 group_by <- c("priority", "future_order", "location", "shift", "appropriate")
-plots <- c(Scatter = "scatter", Histogram = "histogram", BoxPlot = "box")
+plots <- c(Scatter = "scatter", Histogram = "histogram", `Box Plot` = "box")
 cat_x <- c("location", "priority", "future_order", "appropriate", "not_collected", "day", "hour")
 
 ui <- fluidPage(
@@ -94,6 +94,11 @@ server <- function(input, output, session) {
             updateSelectInput(session, "x", choices = times, selected = "dispatch_detail_diff")
         }
 
+        if (input$plot == "histogram") {
+            updateSelectInput(session, "y", choices = character(0))
+        } else {
+            updateSelectInput(session, "y", choices = times, select = "collect_detail_diff")
+        }
     })
 
     #add reactive data information. Dataset = built in diamonds data
