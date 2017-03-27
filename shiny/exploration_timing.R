@@ -53,19 +53,25 @@ data_orders <- orders_levels %>%
            detail.datetime >= order.datetime - hours(1)) %>%
     mutate(priority = if_else(early_am, "Early AM", priority)) %>%
     dmap_at("collect_detail_diff", ~ .x / 60) %>%
+    dmap_at("appropriate", ~ if_else(.x, "Timely", "Untimely")) %>%
+    dmap_at("not_collected", ~ if_else(.x, "Not Collected", "Collected")) %>%
     select(location, priority, future_order, appropriate, shift, not_collected,
            collect_detail_diff:dispatch_detail_diff, month:hour_order)
 
 times <- c("collect_detail_diff", "order_detail_diff", "order_dispatch_diff", "dispatch_detail_diff")
 group_by <- c("priority", "future_order", "location", "shift", "appropriate")
+plots <- c(Scatter = "scatter", Histogram = "histogram", BoxPlot = "box")
+cat_x <- c("location", "priority", "future_order", "appropriate", "not_collected", "day", "hour")
 
 ui <- fluidPage(
 
     headerPanel("CSE Project Exploration"),
     sidebarPanel(
         # sliderInput('sampleSize', 'Sample Size', min = 1, max = nrow(diamonds), value = 1000, step = 500, round = 0),
+        selectInput("plot", "Plot Type", choices = plots, selected = "scatter"),
         selectInput('x', 'X', choices = times, selected = "dispatch_detail_diff"),
         selectInput('y', 'Y', choices = times, selected = "collect_detail_diff"),
+        sliderInput("bins", "Bin width", min = 0.25, max = 3, value = 1, step = 0.25, round = FALSE),
         selectInput('color', 'Color', choices = c(None = ".", group_by)),
         selectInput('split', 'Split', choices = c(None = ".", group_by)),
         selectInput('filter', 'Location Filter', choices = c(HVI = ".", hvi))
@@ -79,7 +85,16 @@ ui <- fluidPage(
     )
 )
 
-server <- function(input, output) {
+server <- function(input, output, session) {
+
+    observe({
+        if (input$plot == "box") {
+            updateSelectInput(session, "x", choices = cat_x)
+        } else {
+            updateSelectInput(session, "x", choices = times)
+        }
+
+    })
 
     #add reactive data information. Dataset = built in diamonds data
     dataset <- reactive({
@@ -104,12 +119,30 @@ server <- function(input, output) {
         } else {
             split = interp(~factor(split), split = as.name(input$split))
         }
-        plot_ly(dataset(),
-                x = interp(~x, x = as.name(input$x)),
-                y = interp(~y, y = as.name(input$y)),
+
+        p <- plot_ly(dataset(),
                 color = color,
-                split = split) %>%
-            add_markers(marker = list(symbol = "circle-open"))
+                split = split)
+
+        if (input$plot == "histogram") {
+            # xval <- dataset()[[input$x]]
+            add_histogram(p,
+                          x = interp(~x, x = as.name(input$x))
+                          # xbins = list(start = min(xval), end = max(xval), size = 1),
+                          # autobinx = FALSE
+                          # xbins = list(size = interp(~bins, bins = as.name(input$bins)))
+            )
+        } else if (input$plot == "box") {
+            add_boxplot(p,
+                        x = interp(~x, x = as.name(input$x)),
+                        y = interp(~y, y = as.name(input$y))
+            )
+        } else {
+            add_markers(p,
+                        x = interp(~x, x = as.name(input$x)),
+                        y = interp(~y, y = as.name(input$y)),
+                        marker = list(symbol = "circle-open"))
+        }
             # layout(xaxis = list(range = c(-3, 48)),
                    # yaxis = list(range = c(-3, 48)))
 
