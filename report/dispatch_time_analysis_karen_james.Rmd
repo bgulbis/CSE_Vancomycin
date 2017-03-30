@@ -1,0 +1,129 @@
+---
+title: "Analysis of Vancomycin Dispatch Times"
+author: "Brian Gulbis"
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output:
+  tufte::tufte_handout:
+    latex_engine: pdflatex
+link-citations: yes
+---
+
+```{r setup, include=FALSE}
+library(tufte)
+# invalidate cache when the tufte version changes
+knitr::opts_chunk$set(tidy = FALSE, cache.extra = packageVersion('tufte'), echo = FALSE, message = FALSE)
+options(htmltools.dir.version = FALSE)
+```
+
+```{r, message=FALSE}
+library(tidyverse)
+library(stringr)
+library(forcats)
+library(lubridate)
+library(broom)
+library(themebg)
+
+x <- dirr::get_rds("../data/tidy")
+
+end_date <- "2017-03-05"
+
+hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
+# hvi <- "HH CVICU"
+
+orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
+    filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
+    mutate(not_collected = is.na(Collected) & is.na(lab.result),
+           location = coalesce(event.unit, order.unit),
+           month = floor_date(detail.datetime, unit = "month"),
+           week = floor_date(detail.datetime, unit = "week"),
+           day = wday(detail.datetime, label = TRUE, abbr = TRUE),
+           hour = hour(detail.datetime),
+           day_order = wday(order.datetime, label = TRUE, abbr = TRUE),
+           hour_order = hour(order.datetime),
+           exceed_2hr = abs(collect_detail_diff) > 120,
+           pilot = detail.datetime >= mdy("1/30/2017", tz = "US/Central"),
+           future_order = order_detail_diff > 1) %>%
+    dmap_at(c("timely120", "timely60", "appropriate"), ~ coalesce(.x, FALSE)) %>%
+    dmap_at("future_order", ~if_else(.x, "Future", "Now"))
+```
+
+```{r data_sets}
+data_orders <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime - hours(1)) %>%
+    mutate(priority = if_else(early_am, "Early AM", priority))
+
+data_orders_backdated <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime < order.datetime - hours(1))
+```
+
+# Problem Overview
+
+`r newthought('In CVICU')`, approximately 40% of vancomycin levels are being collected inappropriately, `r margin_note('Inappropriately collected is defined as being collected more than 60 minutes from the scheduled collection time, or more than 120 minutes for Early AM levels')` and this rate has been increasing from April to December 2016. Approximately 9% of ordered levels are never collected.   
+
+Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, which may result in undertreating infections, increased antimicrobial resistance, and increased risk of adverse effects.  
+
+# Process
+
+1. Provider places the order for the vancomycin level, specifying a priority (Routine, Stat, Timed Study) and a date/time for collection.
+1. The EMR system dispatches a task to nursing to collect the lab specimen. 
+1. The nurse reviews their task list and / or PAL and is notified of the task. 
+    a. Nurses do not receive notification of the lab collection task until the task has been dispatched.
+1. The nurse collects the lab specimen.
+1. The nurse sends the specimen to the lab.
+
+# Key Finding
+
+For orders placed with a priority of Routine or Timed Study, there is a large variation in the amount of advanced notification a nurse has before the lab is due to be collected.
+
+```{r, fig.cap="Distribution of time from task dispatch to scheduled collection by order priority"}
+ggplot(data_orders, aes(x = dispatch_detail_diff)) +
+    geom_vline(xintercept = 0, color = "light grey") +
+    geom_hline(yintercept = 0, color = "light grey") +
+    geom_histogram(binwidth = 0.25) +
+    facet_wrap(~ priority, scales = "free_y") +
+    scale_x_continuous("Task Dispatch to Scheduled Collection (hours)", breaks = seq(-12, 12, 2)) +
+    ylab("Number of Orders Dispatched") +
+    coord_cartesian(xlim = c(-4, 4)) +
+    theme_bg(base_family = "serif")
+```
+
+From this, it appears that Stat orders dispatch immediately, whereas Routine (which includes orders for Early AM) and Timed Study orders dispatch a variable amount of time prior to the scheduled collection time, with some tasks only dispatching 15 minutes prior to the scheduled collection time. This may present a challenge for nurses to draw time-sensitive labs in a timely manner if they do not receive enough notification to draw the lab.
+
+```{r}
+x <- data_orders %>%
+    group_by(future_order) %>%
+    do(tidy(summary(.$dispatch_detail_diff))) %>%
+    mutate(category = "All") 
+
+y <- data_orders %>%
+    group_by(future_order, priority) %>%
+    do(tidy(summary(.$dispatch_detail_diff))) %>%
+    rename(category = priority)
+
+z <- summary(data_orders$dispatch_detail_diff) %>%
+    tidy() %>%
+    mutate(category = "All",
+           future_order = "All")
+
+bind_rows(x, y, z) %>%
+    select(type = future_order, category, everything()) %>%
+    arrange(type, category) %>%
+    knitr::kable(digits = 3, caption = "Summary measures for the time from dispatch to scheduled collection")
+```
+
+# Back-Dated Orders
+
+There are a small number of orders which were placed and then back-dated with an earlier collection time.
+
+```{r, fig.cap="Provider role that ordered back-dated levels"}
+data_orders_backdated %>%
+    dmap_at("action.provider.role", fct_infreq) %>%
+    ggplot(aes(x = action.provider.role)) +
+    geom_bar() +
+    xlab("Provider Role") +
+    ylab("Number of Orders") +
+    coord_flip() +
+    theme_bg(base_family = "serif")
+```
