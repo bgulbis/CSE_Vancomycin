@@ -8,23 +8,7 @@ library(lubridate)
 library(lazyeval)
 library(plotly)
 
-theme_bg <- function(base_size = 11, base_family = "") {
-    theme_bw(base_family = base_family, base_size = base_size) +
-        theme(legend.background = element_blank(),
-              legend.key = element_blank(),
-              legend.text = element_text(color = "grey35"),
-              panel.background = element_blank(),
-              panel.border = element_blank(),
-              strip.background = element_blank(),
-              plot.background = element_blank(),
-              panel.grid = element_blank(),
-              axis.line = element_line(color = "grey85"),
-              axis.text = element_text(color = "grey35"),
-              axis.title = element_text(color = "grey35"),
-              axis.ticks = element_line(color = "grey35"))
-}
-
-x <- dirr::get_rds("data/tidy")
+x <- dirr::get_rds("../data/tidy")
 rm(x)
 
 end_date <- "2017-03-05"
