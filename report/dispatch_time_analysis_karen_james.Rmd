@@ -78,7 +78,7 @@ Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, 
 
 # Key Finding
 
-Orders for vancomycin levels placed with a priority of Routine or Timed Study, there is a large variation in the amount of advanced notification a nurse has before the lab is due to be collected.^[Refer to Figure 1]
+Orders for vancomycin levels placed with a priority of Routine or Timed Study, there is a large variation in the amount of advanced notification a nurse has before the lab is due to be collected (see Figure 1).
 
 ```{r, fig.cap="Distribution of time from task dispatch to scheduled collection by order priority. Most Timed Study orders are dispatching at either 45, 75, 105, or 135 minutes prior to the scheduled collection time, as indicated by the taller bars."}
 ggplot(data_orders, aes(x = dispatch_detail_diff)) +
