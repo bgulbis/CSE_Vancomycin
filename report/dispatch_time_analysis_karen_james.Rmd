@@ -5,6 +5,7 @@ date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
   tufte::tufte_handout:
     latex_engine: pdflatex
+  tufte::tufte_html: default
 link-citations: yes
 ---
 
