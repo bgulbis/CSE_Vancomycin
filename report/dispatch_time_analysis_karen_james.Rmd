@@ -71,30 +71,28 @@ Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, 
 # Process
 
 1. Provider places the order for the vancomycin level, specifying a priority (Routine, Stat, Timed Study) and a date/time for collection.^[This includes orders for both the Vancomycin Level and Vancomycin Level Trough labs.]
-1. The Care4 system dispatches a task for nursing to collect the lab specimen.^[Nurses do not receive notification of the lab collection task until the task has been dispatched.]
-1. When the nurse reviews their task list or PAL, they will see the lab collection task.^[Nurses are expected to review the chart/Care4 for new orders every two hours.]
-1. The nurse collects the lab specimen.
-1. The nurse sends the specimen to the lab.
+1. Care4 dispatches a task for nursing to collect the lab specimen.^[Nurses do not receive notification of the lab collection task until the task has been dispatched.]
+1. Nurse reviews their task list and sees the lab collection task.^[Nurses are expected to review the chart/Care4 for new orders every two hours.]
+1. Nurse collects the lab specimen and sends it to the lab.
 
 # Key Finding
 
-Orders for vancomycin levels placed with a priority of Routine or Timed Study, there is a large variation in the amount of advanced notification a nurse has before the lab is due to be collected (see Figure 1).
-
-```{r, fig.cap="Distribution of time from task dispatch to scheduled collection by order priority. Most Timed Study orders are dispatching at either 45, 75, 105, or 135 minutes prior to the scheduled collection time, as indicated by the taller bars."}
-ggplot(data_orders, aes(x = dispatch_detail_diff)) +
+```{r, fig.cap="Distribution of time from task dispatch to scheduled collection by order priority. Each bar represents a 15-minute increment. There is large variation in the amount of advanced notification a nurse has before the lab is due to be collected."}
+ggplot(data_orders, aes(x = dispatch_detail_diff * 60, fill = future_order)) +
     geom_vline(xintercept = 0, color = "light grey") +
     geom_hline(yintercept = 0, color = "light grey") +
-    geom_histogram(binwidth = 0.25) +
+    geom_histogram(binwidth = 15) +
     facet_wrap(~ priority, scales = "free_y") +
-    scale_x_continuous("Task Dispatch to Scheduled Collection (hours)", breaks = seq(-12, 12, 2)) +
-    ylab("Number of Orders Dispatched") +
-    coord_cartesian(xlim = c(-4, 4)) +
+    scale_x_continuous("Task Dispatch to Scheduled Collection (minutes)", breaks = seq(-12 * 60, 12 * 60, 2 * 60)) +
+    ylab("Number Dispatched") +
+    scale_fill_brewer("", palette = "Accent") +
+    coord_cartesian(xlim = c(-4 * 60, 4 * 60)) +
     theme_bg(base_family = "serif")
 ```
 
 # Assessment
 
-From this, it appears that Stat orders dispatch immediately, whereas Routine (which includes orders for Early AM) and Timed Study orders dispatch a variable amount of time prior to the scheduled collection time, with some tasks only dispatching 15 minutes prior to the scheduled collection time. This may present a challenge for nurses to draw time-sensitive labs in a timely manner if they do not receive enough notification to draw the lab.
+It appears that Stat orders dispatch immediately, whereas Routine (which includes orders for Early AM) and Timed Study orders dispatch a variable amount of time relative to the scheduled collection time. Most Timed Study orders are dispatching at either 45, 75, 105, or 135 minutes prior to the scheduled collection time. Routine orders scheduled for future collection dispatch on the same 30-minute interval as Timed Study but extend further out, while many Routine orders due to be collected *now* do not dispatch until up to 120 minutes **after** the lab was supposed to be collected. Most Early AM tasks dispatch 15 minutes prior to the scheduled collection time. The variability in task dispatching may present a challenge for nurses to draw time-sensitive labs in a timely manner if they do not receive enough notification to draw the lab.
 
 ```{r, eval=FALSE}
 x <- data_orders %>%
@@ -120,8 +118,6 @@ bind_rows(x, y, z) %>%
 
 # Back-Timed Orders
 
-There are a small number of orders (n = `r nrow(data_orders_backdated)`) which were placed and then back-timed with an earlier collection time. The majority of these orders were placed by a `r backdated_orders$action.provider.role[1]` (see Figure 2). Most of these orders were placed between 3 and 6 hours after the scheduled collection time (see Figure 3).
-
 ```{r, fig.cap="Provider role placing back-timed orders for vancomycin levels"}
 data_orders_backdated %>%
     dmap_at("action.provider.role", fct_infreq) %>%
@@ -132,6 +128,8 @@ data_orders_backdated %>%
     coord_flip() +
     theme_bg(base_family = "serif")
 ```
+
+There are a small number of orders (n = `r nrow(data_orders_backdated)`) which were placed and then back-timed with an earlier collection time. The majority of these orders were placed by a `r backdated_orders$action.provider.role[1]` (see Figure 2). Most of these orders were placed between 3 and 6 hours after the scheduled collection time (see Figure 3).
 
 ```{r, fig.cap="Distribution of the number of hours the order was back-timed", fig.margin=TRUE}
 ggplot(data_orders_backdated, aes(x = "Back-Timed Orders", y = order_detail_diff)) +
