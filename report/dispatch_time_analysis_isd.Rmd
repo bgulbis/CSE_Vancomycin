@@ -3,9 +3,9 @@ title: "Analysis of Dispatch Times for Vancomycin Levels in HVI"
 author: "Brian Gulbis"
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output:
+  tufte::tufte_html: default
   tufte::tufte_handout:
     latex_engine: pdflatex
-  tufte::tufte_html: default
 link-citations: yes
 ---
 
@@ -119,6 +119,8 @@ bind_rows(x, y, z) %>%
 
 # Back-Timed Orders
 
+There are a small number of orders (n = `r nrow(data_orders_backdated)`) which were placed and then back-timed with an earlier collection time. 
+
 ```{r, fig.cap="Provider role placing back-timed orders for vancomycin levels"}
 data_orders_backdated %>%
     dmap_at("action.provider.role", fct_infreq) %>%
@@ -130,8 +132,6 @@ data_orders_backdated %>%
     theme_bg(base_family = "serif")
 ```
 
-There are a small number of orders (n = `r nrow(data_orders_backdated)`) which were placed and then back-timed with an earlier collection time. The majority of these orders were placed by a `r backdated_orders$action.provider.role[1]` (see Figure 2). Most of these orders were placed between 3 and 6 hours after the scheduled collection time (see Figure 3).
-
 ```{r, fig.cap="Distribution of the number of hours the order was back-timed", fig.margin=TRUE}
 ggplot(data_orders_backdated, aes(x = "Back-Timed Orders", y = order_detail_diff)) +
     # geom_histogram(binwidth = 1)
@@ -142,3 +142,4 @@ ggplot(data_orders_backdated, aes(x = "Back-Timed Orders", y = order_detail_diff
     
 ```
 
+The majority of these orders were placed by a `r backdated_orders$action.provider.role[1]` (see Figure 2). Most of these orders were placed between 3 and 6 hours after the scheduled collection time (see Figure 3).
