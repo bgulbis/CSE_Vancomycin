@@ -333,7 +333,7 @@ data_orders_backdated %>%
 
 library(edwr)
 x <- data_orders %>%
-    filter(priority == "Routine",
+    filter(priority %in% c("Routine", "Stat"),
            future_order == "Future",
            !early_am) 
 
