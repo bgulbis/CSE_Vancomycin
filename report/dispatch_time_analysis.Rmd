@@ -122,6 +122,24 @@ bind_rows(x, y, z) %>%
 
 ```
 
+```{r, fig.cap="Quarter Hour of Task Dispatch. Most tasks dispatch on the 45-minute mark of the hour."}
+df <- data_orders %>%
+    filter(!is.na(Dispatched)) %>%
+    mutate(dispatch_min = round_date(Dispatched, unit = "15 mins"),
+           dispatch_min = minute(dispatch_min),
+           dispatch_hour = round_date(Dispatched, unit = "hour"),
+           dispatch_hour = hour(dispatch_hour))
+
+plot_ly(df, x = ~factor(dispatch_min)) %>%
+    add_histogram(split = ~interaction(priority, future_order))
+```
+
+```{r, fig.cap="Dispatch by hour of day"}
+plot_ly(df, x = ~factor(dispatch_hour)) %>%
+    add_histogram(split = ~interaction(priority, future_order))
+```
+
+
 # Future Orders
 
 ```{r, fig.cap="Distribution of time from task dispatch to scheduled collection by day of week"}
