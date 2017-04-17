@@ -174,16 +174,16 @@ priority <- valid_details %>%
 
 # id <- concat_encounters(miss$order.id)
 
-check_detail_time <- function(x) {
-
-}
+# check_detail_time <- function(x) {
+#
+# }
 
 orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
     left_join(request_times, by = c("pie.id", "order.id")) %>%
     left_join(priority, by = c("pie.id", "order.id")) %>%
     # corrected data for rows with detail.datetime that had incorrect years
     mutate(detail.datetime = if_else(detail.datetime < order.datetime - days(1), detail.datetime + years(1), detail.datetime)) %>%
-    verify(detail.datetime >= order.datetime - days(1)) %>%
+    # verify(detail.datetime >= order.datetime - days(1)) %>%
     # left_join(order_comm, by = c("pie.id", "order.id")) %>%
     # filter(is.na(discontinue.datetime),
     #        is.na(cancel.datetime),
