@@ -45,7 +45,12 @@ orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id
     dmap_at(c("timely120", "timely60", "appropriate"), ~ coalesce(.x, FALSE)) %>%
     dmap_at("future_order", ~if_else(.x, "Future", "Now"))
 
-collected <- orders_levels %>%
+data_orders <- orders_levels %>%
+    filter(priority %in% c("Routine", "Stat", "Timed Study"),
+           detail.datetime >= order.datetime - hours(1)) %>%
+    mutate(priority = if_else(early_am, "Early AM", priority))
+
+collected <- data_orders %>%
     filter(!is.na(Collected),
            order.datetime <= ymd(baseline)) %>%
     group_by(event.unit) %>%
@@ -55,7 +60,7 @@ collected <- orders_levels %>%
               late = sum(late, na.rm = TRUE),
               late_2hr = sum(exceed_2hr, na.rm = TRUE)) 
 
-not_done <- orders_levels %>%
+not_done <- data_orders %>%
     filter(is.na(Collected),
            is.na(lab.result),
            order.datetime <= ymd(baseline)) %>%
@@ -77,6 +82,14 @@ early_am <- orders_early_am %>%
     rename(early_am = n) %>%
     filter(order.unit %in% hvi) 
 
+priority <- data_orders %>%
+    filter(!is.na(Collected),
+           order.datetime <= ymd(baseline),
+           priority %in% c("Routine", "Stat", "Timed Study")) %>%
+    count(event.unit, priority) %>%
+    group_by(event.unit) %>%
+    spread(priority, n)
+
 # percent_timely = timely / collected,
            
 totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit")) %>%
@@ -86,6 +99,7 @@ totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit
            defects = total - timely,
            percent_not_done = not_done / total,
            percent_appropriate = timely / total,
+           percent_untimely = 1 - percent_appropriate,
            percent_exceed_2hr = late_2hr / total,
            percent_requests = requests / total,
            percent_early_am = early_am / total)
@@ -96,6 +110,7 @@ totals_hvi <- totals_units %>%
     mutate(event.unit = "HVI",
            percent_not_done = not_done / total,
            percent_appropriate = timely / total,
+           percent_untimely = 1 - percent_appropriate,
            percent_exceed_2hr = late_2hr / total,
            percent_requests = requests / total,
            percent_early_am = early_am / total) 
@@ -104,21 +119,129 @@ totals <- bind_rows(totals_units, totals_hvi) %>%
     select(event.unit, num_levels = total, everything()) %>%
     filter(!is.na(event.unit))
 
+cvicu_reqs <- orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           order.datetime <= ymd(baseline)) %>%
+    mutate(priority = "Request") %>%
+    select(pie.id, priority, action.provider.role)
+
+cvicu_orders <- data_orders %>%
+    filter(event.unit == "HH CVICU",
+           detail.datetime >= order.datetime - hours(1)) %>%
+    full_join(cvicu_reqs, by = c("pie.id", "priority", "action.provider.role"))
+
 ```
 
-```{r, fig.cap="Timeliness and types of orders for vancomycin levels placed during the baseline period of April - to December 2016."}
+```{r, fig.cap="Timeliness of orders for vancomycin levels in CVICU placed during the baseline period of April to December 2016"}
 totals %>%
     filter(event.unit == "HH CVICU") %>%
-    select(starts_with("percent"), -percent_exceed_2hr) %>%
+    select(Untimely = percent_untimely, Uncollected = percent_not_done) %>%
     gather(nm, val) %>%
     dmap_at("val", ~ round(.x * 100, 0)) %>%
     arrange(desc(val)) %>%
     dmap_at("nm", fct_inorder) %>%
+    # mutate(grp = if_else(str_detect(nm, "Untimely|Uncollected"), "Timeliness", "Order Type")) %>%
     ggplot(aes(x = nm, y = val)) +
-    geom_bar(stat = "identity", width = 0.75) +
-    scale_x_discrete("", labels = c("Timely", "Early AM", "Requests", "Uncollected")) +
+    geom_bar(stat = "identity", width = 0.5) +
+    # facet_wrap(~ grp, scales = "free_x") +
+    # scale_x_discrete("", labels = c("Untimely", "Early AM", "Requests", "Uncollected")) +
+    xlab("") +
     ylab("Vancomycin Level Orders (%)") +
     coord_cartesian(ylim = c(0, 100)) +
     theme_bg(xticks = FALSE)
 ```
 
+```{r, fig.cap="Types of orders for vancomycin levels in CVICU placed during the baseline period of April to December 2016"}
+cvicu_orders %>%
+    dmap_at("priority", fct_infreq) %>%
+    ggplot(aes(x = priority)) +
+    geom_bar() +
+    xlab("Order Type") +
+    ylab("Number of Orders") +
+    theme_bg(xticks = FALSE)
+```
+
+```{r, fig.cap="Providers placing orders for vancomycin levels in CVICU during the baseline period of April to December 2016"}
+cvicu_orders %>%
+    filter(!is.na(action.provider.role)) %>%
+    dmap_at("action.provider.role", fct_infreq) %>%
+    dmap_at("action.provider.role", fct_lump, n = 4) %>%
+    dmap_at("action.provider.role", fct_rev) %>%
+    ggplot(aes(x = action.provider.role)) +
+    geom_bar() +
+    xlab("Provider Type") +
+    ylab("Number of Orders") +
+    theme_bg(yticks = FALSE) +
+    coord_flip()
+```
+
+```{r}
+cvicu <- orders_levels %>%
+    filter(location == "HH CVICU",
+           month != "2016-03-01") 
+
+weekly_requests <- orders_requests %>%
+    filter(order.unit == "HH CVICU",
+           is.na(cancel.datetime),
+           !is.na(action.provider.role)) %>%
+    mutate(week = floor_date(request.datetime, unit = "week")) %>%
+    group_by(week) %>%
+    count() %>%
+    rename(requests = n) %>%
+    filter(week != "2016-03-27", week != end_date)
+
+weekly_levels <- cvicu %>%
+    filter(week != "2016-03-27", week != end_date) %>%
+    group_by(week) %>%
+    summarize(levels = n(),
+             early_am = sum(early_am),
+             appropriate = sum(appropriate),
+             uncollected = sum(not_collected)) %>%
+    full_join(weekly_requests, by = "week") %>%
+    dmap_at("requests", ~ coalesce(.x, 0L))
+```
+
+```{r, fig.cap="Percent change in outcomes following pilot intervention relative to baseline period"}
+weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
+    mutate(pilot = ymd(week, tz = "US/Central") >= mdy("1/29/2017", tz = "US/Central")) %>%
+    group_by(pilot) %>%
+    summarize_if(is.numeric, mean) %>%
+    gather(key, value, early_am:requests) %>%
+    select(-levels) %>%
+    spread(pilot, value) %>%
+    rename(baseline = `FALSE`, pilot = `TRUE`) %>%
+    mutate(change = round((pilot / baseline * 100) - 100, 0)) %>%
+    dmap_at("key", factor, levels = c("early_am", "requests", "appropriate", "uncollected")) %>%
+    ggplot(aes(x = key, y = change)) +
+    geom_bar(stat = "identity", width = 0.75) + 
+    geom_hline(yintercept = 0, color = "light gray") +
+    scale_x_discrete("", labels = c("Early AM", "Requests", "Timely", "Uncollected")) +
+    scale_y_continuous("Change (%)", limits = c(-55, 80), breaks = seq(-50, 75, 25)) +
+    theme_bg(xticks = FALSE) 
+```
+
+```{r, fig.cap="Percent change in weekly outcomes relative to the weekly mean during the baseline period", fig.height=4}
+baseline <- weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels * 100)) %>%
+    filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
+    summarize_if(is.numeric, mean) %>%
+    select(-levels) %>%
+    gather(key, value) %>%
+    rename(baseline = value)
+
+weekly_levels %>%
+    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels * 100)) %>%
+    filter(week >= mdy("1/29/2017", tz = "US/Central")) %>%
+    gather(key, value, early_am:requests) %>%
+    left_join(baseline, by = "key") %>%
+    mutate(change = (value / baseline * 100) - 100) %>%
+    dmap_at("key", factor, levels = c("early_am", "requests", "appropriate", "uncollected")) %>%
+    ggplot(aes(x = week, y = change)) +
+    geom_bar(stat = "identity") +
+    geom_hline(yintercept = 0, color = "light gray") +
+    facet_wrap(~ key, labeller = labeller(key = c(early_am = "Early AM", requests = "Requests", appropriate = "Timely", uncollected = "Uncollected"))) +
+    xlab("Week Beginning") +
+    ylab("Change (%)") +
+    theme_bg(xticks = FALSE) 
+```
