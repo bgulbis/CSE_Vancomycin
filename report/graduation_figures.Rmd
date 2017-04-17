@@ -245,3 +245,35 @@ weekly_levels %>%
     ylab("Change (%)") +
     theme_bg(xticks = FALSE) 
 ```
+
+```{r}
+cvicu_dispatch <- data_orders %>%
+    filter(event.unit == "HH CVICU",
+           !is.na(Dispatched)) %>%
+    mutate(dispatch_min = round_date(Dispatched, unit = "15 mins"),
+           dispatch_min = minute(dispatch_min),
+           dispatch_hour = round_date(Dispatched, unit = "hour"),
+           dispatch_hour = hour(dispatch_hour))
+```
+
+```{r, warning=FALSE, fig.cap="Distribution of time from task dispatch to scheduled collection for Future vs. Now orders"}
+ggplot(cvicu_dispatch, aes(x = priority, y = dispatch_detail_diff)) +
+    geom_hline(yintercept = 0, color = "light grey") +
+    geom_boxplot() +
+    facet_wrap(~ future_order) +
+    xlab("Collection Priority") +
+    scale_y_continuous("Time to Scheduled Collection (Hours)", breaks = seq(0, 30, 6)) +
+    theme_bg(xticks = FALSE)
+```
+
+```{r, fig.cap="Hour of day when Routine and Timed Study orders dispatch"}
+cvicu_dispatch %>%
+    filter(priority %in% c("Routine", "Timed Study")) %>%
+    count(priority, dispatch_hour) %>%
+    ggplot(aes(x = dispatch_hour, y = n)) +
+    geom_bar(stat = "identity") +
+    scale_x_continuous("Dispatch Hour of Day", breaks = seq(0, 24, 6)) +
+    ylab("Number of Orders") +
+    scale_fill_brewer("Order Priority") +
+    theme_bg()
+```
