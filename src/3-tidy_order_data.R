@@ -205,7 +205,7 @@ orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
     arrange(pie.id, detail.datetime) %>%
     mutate(mult_levels = is.na(Collected) &
                lead(Collected) <= detail.datetime + hours(3) &
-               lag(Collected >= detail.datetime - hours(3)))
+               lag(Collected) >= detail.datetime - hours(3))
 
 # requests <- orders %>%
 #     # select(pie.id:order.datetime, action.comm, request, Canceled:detail.datetime) %>%
