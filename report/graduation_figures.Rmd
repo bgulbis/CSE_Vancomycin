@@ -31,7 +31,7 @@ hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI
 
 orders_levels <- full_join(vanc_levels, orders_valid, by = c("pie.id", "order.id")) %>%
     filter(event.unit %in% hvi | (is.na(event.unit) & order.unit %in% hvi)) %>%
-    mutate(not_collected = is.na(Collected) & is.na(lab.result),
+    mutate(not_collected = is.na(Collected) & is.na(lab.result) & (!mult_levels | is.na(mult_levels)),
            location = coalesce(event.unit, order.unit),
            month = floor_date(detail.datetime, unit = "month"),
            week = floor_date(detail.datetime, unit = "week"),
@@ -191,14 +191,16 @@ weekly_requests <- orders_requests %>%
     filter(week != "2016-03-27", week != end_date)
 
 weekly_levels <- cvicu %>%
-    filter(week != "2016-03-27", week != end_date) %>%
+    filter(week != "2016-03-27", 
+           week != end_date,
+           !is.na(Dispatched)) %>%
     group_by(week) %>%
     summarize(levels = n(),
              early_am = sum(early_am),
              appropriate = sum(appropriate),
              uncollected = sum(not_collected)) %>%
     full_join(weekly_requests, by = "week") %>%
-    dmap_at("requests", ~ coalesce(.x, 0L))
+    dmap_at(c("requests", "uncollected"), ~ coalesce(.x, 0L))
 ```
 
 ```{r, fig.cap="Percent change in outcomes following pilot intervention relative to baseline period"}
@@ -283,7 +285,8 @@ cvicu_dispatch %>%
 ```{r, warning=FALSE, fig.cap="Number of uncollected levels by collection priority and Now vs. Future orders"}
 data_orders %>%
     filter(location == "HH CVICU",
-           not_collected) %>%
+           not_collected,
+           !is.na(Dispatched)) %>%
     dmap_at("priority", fct_infreq) %>%
     count(priority, pilot) %>%
     group_by(pilot) %>%
@@ -295,3 +298,13 @@ data_orders %>%
     ylab("Uncollected Levels (%)") +
     theme_bg(xticks = FALSE)
 ```
+
+```{r}
+x <- data_orders %>%
+    filter(location == "HH CVICU",
+           not_collected,
+           pilot,
+           !is.na(Dispatched)) %>%
+    select(pie.id, detail.datetime, Dispatched, Discontinued, priority, mult_levels, everything())
+```
+
