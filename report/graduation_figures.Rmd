@@ -23,7 +23,7 @@ library(themebg)
 
 x <- dirr::get_rds("../data/tidy")
 
-end_date <- "2017-03-05"
+end_date <- "2017-04-16"
 baseline <- "2016-12-31"
 
 hvi <- c("HH CVICU", "HH CVIMU", "HH HFIC", "HH HFIM", "HH 5HVI", "HH CCU", "HVI CIMU")
@@ -217,7 +217,7 @@ weekly_levels %>%
     geom_bar(stat = "identity", width = 0.75) + 
     geom_hline(yintercept = 0, color = "light gray") +
     scale_x_discrete("", labels = c("Early AM", "Requests", "Timely", "Uncollected")) +
-    scale_y_continuous("Change (%)", limits = c(-55, 80), breaks = seq(-50, 75, 25)) +
+    scale_y_continuous("Change (%)", limits = c(-100, 100), breaks = seq(-100, 100, 25)) +
     theme_bg(xticks = FALSE) 
 ```
 

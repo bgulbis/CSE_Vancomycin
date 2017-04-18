@@ -124,6 +124,7 @@ There are a small number of orders (n = `r nrow(data_orders_backdated)`) which w
 ```{r, fig.cap="Provider role placing back-timed orders for vancomycin levels"}
 data_orders_backdated %>%
     dmap_at("action.provider.role", fct_infreq) %>%
+    dmap_at("action.provider.role", fct_rev) %>%
     ggplot(aes(x = action.provider.role)) +
     geom_bar() +
     xlab("Provider Role") +
