@@ -277,3 +277,21 @@ cvicu_dispatch %>%
     scale_fill_brewer("Order Priority") +
     theme_bg()
 ```
+
+# Exploration
+
+```{r, warning=FALSE, fig.cap="Number of uncollected levels by collection priority and Now vs. Future orders"}
+data_orders %>%
+    filter(location == "HH CVICU",
+           not_collected) %>%
+    dmap_at("priority", fct_infreq) %>%
+    count(priority, pilot) %>%
+    group_by(pilot) %>%
+    mutate_at("n", funs(. / sum(n) * 100)) %>%
+    ggplot(aes(x = priority, y = n)) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~ pilot, labeller = labeller(pilot = c(`FALSE` = "Baseline", `TRUE` = "Pilot"))) +
+    xlab("Collection Priority") +
+    ylab("Uncollected Levels (%)") +
+    theme_bg(xticks = FALSE)
+```
