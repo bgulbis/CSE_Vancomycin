@@ -262,11 +262,25 @@ cvicu_dispatch <- data_orders %>%
 ggplot(cvicu_dispatch, aes(x = priority, y = dispatch_detail_diff)) +
     geom_hline(yintercept = 0, color = "light grey") +
     geom_boxplot() +
-    # facet_wrap(~ future_order) +
+    facet_wrap(~ future_order) +
     xlab("Collection Priority") +
     scale_y_continuous("Dispatch to Scheduled Collection (Hours)", breaks = seq(0, 30, 6)) +
     theme_bg(xticks = FALSE)
 ```
+
+```{r}
+ggplot(cvicu_dispatch, aes(x = dispatch_detail_diff * 60, fill = future_order)) +
+    geom_vline(xintercept = 0, color = "light grey") +
+    geom_hline(yintercept = 0, color = "light grey") +
+    geom_histogram(binwidth = 15, color = "white") +
+    facet_wrap(~ priority, scales = "free_y") +
+    scale_x_continuous("Task Dispatch to Scheduled Collection (minutes)", breaks = seq(-12 * 60, 12 * 60, 2 * 60)) +
+    ylab("Number Dispatched") +
+    scale_fill_brewer("", palette = "Paired") +
+    coord_cartesian(xlim = c(-4 * 60, 4 * 60)) +
+    theme_bg(base_family = "serif")
+```
+
 
 ```{r, fig.cap="Hour of day when Routine and Timed Study orders dispatch"}
 cvicu_dispatch %>%

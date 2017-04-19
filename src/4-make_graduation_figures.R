@@ -130,6 +130,10 @@ fig_order_type <- cvicu_orders %>%
 
 fig_provider_type <- cvicu_orders %>%
     filter(!is.na(action.provider.role)) %>%
+    dmap_at("action.provider.role", str_replace_all, pattern = ".*Pharm.*", replacement = "Pharmacist") %>%
+    dmap_at("action.provider.role", str_replace_all, pattern = ".*MD.*|.*ED.*", replacement = "Physician") %>%
+    dmap_at("action.provider.role", str_replace_all, pattern = ".*Practitioner.*", replacement = "NP/PA") %>%
+    dmap_at("action.provider.role", str_replace_all, pattern = ".*RN.*", replacement = "Nurse") %>%
     dmap_at("action.provider.role", fct_infreq) %>%
     dmap_at("action.provider.role", fct_lump, n = 4) %>%
     dmap_at("action.provider.role", fct_rev) %>%
