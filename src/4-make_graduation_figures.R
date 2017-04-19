@@ -1,27 +1,15 @@
----
-title: "Figures for Graduation Presentation"
-author: "Brian Gulbis"
-date: '`r format(Sys.Date(), "%B %d, %Y")`'
-output: 
-  html_document:
-    code_folding: hide
-    fig_caption: yes
----
+# make figures for graduation presentation
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-```{r, message=FALSE}
 library(tidyverse)
 library(stringr)
 library(forcats)
 library(lubridate)
-library(broom)
-library(qicharts)
+# library(broom)
+# library(qicharts)
 library(themebg)
+library(ReporteRs)
 
-x <- dirr::get_rds("../data/tidy")
+x <- dirr::get_rds("data/tidy")
 
 end_date <- "2017-04-16"
 baseline <- "2016-12-31"
@@ -58,7 +46,7 @@ collected <- data_orders %>%
               timely = sum(appropriate, na.rm = TRUE),
               early = sum(early, na.rm = TRUE),
               late = sum(late, na.rm = TRUE),
-              late_2hr = sum(exceed_2hr, na.rm = TRUE)) 
+              late_2hr = sum(exceed_2hr, na.rm = TRUE))
 
 not_done <- data_orders %>%
     filter(is.na(Collected),
@@ -80,7 +68,7 @@ early_am <- orders_early_am %>%
     group_by(order.unit) %>%
     count() %>%
     rename(early_am = n) %>%
-    filter(order.unit %in% hvi) 
+    filter(order.unit %in% hvi)
 
 priority <- data_orders %>%
     filter(!is.na(Collected),
@@ -91,7 +79,7 @@ priority <- data_orders %>%
     spread(priority, n)
 
 # percent_timely = timely / collected,
-           
+
 totals_units <- left_join(collected, not_done, by = c("event.unit" = "order.unit")) %>%
     left_join(requests, by = c("event.unit" = "order.unit")) %>%
     left_join(early_am, by = c("event.unit" = "order.unit")) %>%
@@ -113,7 +101,7 @@ totals_hvi <- totals_units %>%
            percent_untimely = 1 - percent_appropriate,
            percent_exceed_2hr = late_2hr / total,
            percent_requests = requests / total,
-           percent_early_am = early_am / total) 
+           percent_early_am = early_am / total)
 
 totals <- bind_rows(totals_units, totals_hvi) %>%
     select(event.unit, num_levels = total, everything()) %>%
@@ -130,39 +118,17 @@ cvicu_orders <- data_orders %>%
            detail.datetime >= order.datetime - hours(1)) %>%
     full_join(cvicu_reqs, by = c("pie.id", "priority", "action.provider.role"))
 
-```
-
-```{r, fig.cap="Timeliness of orders for vancomycin levels in CVICU placed during the baseline period of April to December 2016"}
-totals %>%
-    filter(event.unit == "HH CVICU") %>%
-    select(Untimely = percent_untimely, Uncollected = percent_not_done) %>%
-    gather(nm, val) %>%
-    dmap_at("val", ~ round(.x * 100, 0)) %>%
-    arrange(desc(val)) %>%
-    dmap_at("nm", fct_inorder) %>%
-    # mutate(grp = if_else(str_detect(nm, "Untimely|Uncollected"), "Timeliness", "Order Type")) %>%
-    ggplot(aes(x = nm, y = val)) +
-    geom_bar(stat = "identity", width = 0.5) +
-    # facet_wrap(~ grp, scales = "free_x") +
-    # scale_x_discrete("", labels = c("Untimely", "Early AM", "Requests", "Uncollected")) +
-    xlab("") +
-    ylab("Vancomycin Level Orders (%)") +
-    coord_cartesian(ylim = c(0, 100)) +
-    theme_bg(xticks = FALSE)
-```
-
-```{r, fig.cap="Types of orders for vancomycin levels in CVICU placed during the baseline period of April to December 2016"}
-cvicu_orders %>%
+fig_order_type <- cvicu_orders %>%
     dmap_at("priority", fct_infreq) %>%
+    dmap_at("priority", fct_rev) %>%
     ggplot(aes(x = priority)) +
     geom_bar() +
     xlab("Order Type") +
     ylab("Number of Orders") +
-    theme_bg(xticks = FALSE)
-```
+    theme_bg(xticks = FALSE) +
+    coord_flip()
 
-```{r, fig.cap="Providers placing orders for vancomycin levels in CVICU during the baseline period of April to December 2016"}
-cvicu_orders %>%
+fig_provider_type <- cvicu_orders %>%
     filter(!is.na(action.provider.role)) %>%
     dmap_at("action.provider.role", fct_infreq) %>%
     dmap_at("action.provider.role", fct_lump, n = 4) %>%
@@ -173,12 +139,10 @@ cvicu_orders %>%
     ylab("Number of Orders") +
     theme_bg(yticks = FALSE) +
     coord_flip()
-```
 
-```{r}
 cvicu <- orders_levels %>%
     filter(location == "HH CVICU",
-           month != "2016-03-01") 
+           month != "2016-03-01")
 
 weekly_requests <- orders_requests %>%
     filter(order.unit == "HH CVICU",
@@ -191,20 +155,18 @@ weekly_requests <- orders_requests %>%
     filter(week != "2016-03-27", week != end_date)
 
 weekly_levels <- cvicu %>%
-    filter(week != "2016-03-27", 
+    filter(week != "2016-03-27",
            week != end_date,
            !is.na(Dispatched)) %>%
     group_by(week) %>%
     summarize(levels = n(),
-             early_am = sum(early_am),
-             appropriate = sum(appropriate),
-             uncollected = sum(not_collected)) %>%
+              early_am = sum(early_am),
+              appropriate = sum(appropriate),
+              uncollected = sum(not_collected)) %>%
     full_join(weekly_requests, by = "week") %>%
     dmap_at(c("requests", "uncollected"), ~ coalesce(.x, 0L))
-```
 
-```{r, fig.cap="Percent change in outcomes following pilot intervention relative to baseline period"}
-weekly_levels %>%
+fig_pilot <- weekly_levels %>%
     mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels)) %>%
     mutate(pilot = ymd(week, tz = "US/Central") >= mdy("1/29/2017", tz = "US/Central")) %>%
     group_by(pilot) %>%
@@ -216,39 +178,12 @@ weekly_levels %>%
     mutate(change = round((pilot / baseline * 100) - 100, 0)) %>%
     dmap_at("key", factor, levels = c("early_am", "requests", "appropriate", "uncollected")) %>%
     ggplot(aes(x = key, y = change)) +
-    geom_bar(stat = "identity", width = 0.75) + 
+    geom_bar(stat = "identity", width = 0.75) +
     geom_hline(yintercept = 0, color = "light gray") +
     scale_x_discrete("", labels = c("Early AM", "Requests", "Timely", "Uncollected")) +
     scale_y_continuous("Change (%)", limits = c(-100, 100), breaks = seq(-100, 100, 25)) +
-    theme_bg(xticks = FALSE) 
-```
+    theme_bg(xticks = FALSE)
 
-```{r, fig.cap="Percent change in weekly outcomes relative to the weekly mean during the baseline period", fig.height=4}
-baseline <- weekly_levels %>%
-    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels * 100)) %>%
-    filter(week < mdy("1/29/2017", tz = "US/Central")) %>%
-    summarize_if(is.numeric, mean) %>%
-    select(-levels) %>%
-    gather(key, value) %>%
-    rename(baseline = value)
-
-weekly_levels %>%
-    mutate_at(c("early_am", "appropriate", "uncollected", "requests"), funs(. / levels * 100)) %>%
-    filter(week >= mdy("1/29/2017", tz = "US/Central")) %>%
-    gather(key, value, early_am:requests) %>%
-    left_join(baseline, by = "key") %>%
-    mutate(change = (value / baseline * 100) - 100) %>%
-    dmap_at("key", factor, levels = c("early_am", "requests", "appropriate", "uncollected")) %>%
-    ggplot(aes(x = week, y = change)) +
-    geom_bar(stat = "identity") +
-    geom_hline(yintercept = 0, color = "light gray") +
-    facet_wrap(~ key, labeller = labeller(key = c(early_am = "Early AM", requests = "Requests", appropriate = "Timely", uncollected = "Uncollected"))) +
-    xlab("Week Beginning") +
-    ylab("Change (%)") +
-    theme_bg(xticks = FALSE) 
-```
-
-```{r}
 cvicu_dispatch <- data_orders %>%
     filter(event.unit == "HH CVICU",
            !is.na(Dispatched)) %>%
@@ -256,20 +191,19 @@ cvicu_dispatch <- data_orders %>%
            dispatch_min = minute(dispatch_min),
            dispatch_hour = round_date(Dispatched, unit = "hour"),
            dispatch_hour = hour(dispatch_hour))
-```
 
-```{r, warning=FALSE, fig.cap="Distribution of time from task dispatch to scheduled collection for Future vs. Now orders"}
-ggplot(cvicu_dispatch, aes(x = priority, y = dispatch_detail_diff)) +
+fig_dispatch_histogram <- ggplot(cvicu_dispatch, aes(x = dispatch_detail_diff * 60, fill = future_order)) +
+    geom_vline(xintercept = 0, color = "light grey") +
     geom_hline(yintercept = 0, color = "light grey") +
-    geom_boxplot() +
-    # facet_wrap(~ future_order) +
-    xlab("Collection Priority") +
-    scale_y_continuous("Dispatch to Scheduled Collection (Hours)", breaks = seq(0, 30, 6)) +
-    theme_bg(xticks = FALSE)
-```
+    geom_histogram(binwidth = 15, color = "white") +
+    facet_wrap(~ priority, scales = "free_y") +
+    scale_x_continuous("Task Dispatch to Scheduled Collection (minutes)", breaks = seq(-12 * 60, 12 * 60, 2 * 60)) +
+    ylab("Number Dispatched") +
+    scale_fill_brewer("", palette = "Set1") +
+    coord_cartesian(xlim = c(-4 * 60, 4 * 60)) +
+    theme_bg()
 
-```{r, fig.cap="Hour of day when Routine and Timed Study orders dispatch"}
-cvicu_dispatch %>%
+fig_dispatch_batch <- cvicu_dispatch %>%
     filter(priority %in% c("Routine", "Timed Study")) %>%
     count(priority, dispatch_hour) %>%
     ggplot(aes(x = dispatch_hour, y = n)) +
@@ -278,33 +212,55 @@ cvicu_dispatch %>%
     ylab("Number of Orders") +
     scale_fill_brewer("Order Priority") +
     theme_bg()
-```
 
-# Exploration
+# PowerPoint -------------------------------------------
 
-```{r, warning=FALSE, fig.cap="Number of uncollected levels by collection priority and Now vs. Future orders"}
-data_orders %>%
-    filter(location == "HH CVICU",
-           not_collected,
-           !is.na(Dispatched)) %>%
-    dmap_at("priority", fct_infreq) %>%
-    count(priority, pilot) %>%
-    group_by(pilot) %>%
-    mutate_at("n", funs(. / sum(n) * 100)) %>%
-    ggplot(aes(x = priority, y = n)) +
-    geom_bar(stat = "identity") +
-    facet_wrap(~ pilot, labeller = labeller(pilot = c(`FALSE` = "Baseline", `TRUE` = "Pilot"))) +
-    xlab("Collection Priority") +
-    ylab("Uncollected Levels (%)") +
-    theme_bg(xticks = FALSE)
-```
+doc <- pptx() %>%
+    addSlide(slide.layout = "Blank") %>%
+    addPlot(fun = print,
+            x = fig_order_type,
+            offx = 1,
+            offy = 1,
+            width = 3,
+            height = 2.25,
+            vector.graphic = TRUE,
+            fontname_sans = "Calibri") %>%
+    addSlide(slide.layout = "Blank") %>%
+    addPlot(fun = print,
+            x = fig_provider_type,
+            offx = 1,
+            offy = 1,
+            width = 3,
+            height = 2.25,
+            vector.graphic = TRUE,
+            fontname_sans = "Calibri") %>%
+    addSlide(slide.layout = "Blank") %>%
+    addPlot(fun = print,
+            x = fig_pilot,
+            offx = 1,
+            offy = 1,
+            width = 4,
+            height = 3,
+            vector.graphic = TRUE,
+            fontname_sans = "Calibri") %>%
+    addSlide(slide.layout = "Blank") %>%
+    addPlot(fun = print,
+            x = fig_dispatch_histogram,
+            offx = 1,
+            offy = 1,
+            width = 6,
+            height = 4.5,
+            vector.graphic = TRUE,
+            fontname_sans = "Calibri") %>%
+    addSlide(slide.layout = "Blank") %>%
+    addPlot(fun = print,
+            x = fig_dispatch_batch,
+            offx = 1,
+            offy = 1,
+            width = 6,
+            height = 4.5,
+            vector.graphic = TRUE,
+            fontname_sans = "Calibri")
 
-```{r}
-x <- data_orders %>%
-    filter(location == "HH CVICU",
-           not_collected,
-           pilot,
-           !is.na(Dispatched)) %>%
-    select(pie.id, detail.datetime, Dispatched, Discontinued, priority, mult_levels, everything())
-```
+writeDoc(doc, file = "doc/graduation_figures.pptx")
 
