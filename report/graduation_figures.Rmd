@@ -322,3 +322,68 @@ x <- data_orders %>%
     select(pie.id, detail.datetime, Dispatched, Discontinued, priority, mult_levels, everything())
 ```
 
+# Uncollected
+
+```{r, fig.cap="Types of orders for vancomycin levels which were uncollected in CVICU during pilot"}
+orders_levels %>%
+    filter(not_collected,
+           location == "HH CVICU",
+           pilot) %>%
+    dmap_at("priority", fct_infreq) %>%
+    ggplot(aes(x = priority)) +
+    geom_bar(aes(fill = future_order)) +
+    xlab("Order Type") +
+    ylab("Number of Orders") +
+    theme_bg(xticks = FALSE)
+```
+
+```{r, fig.cap="Comparison of distribution of time from dispatch to scheduled collection among levels which were collected an which were not in CVICU during pilot period"}
+orders_levels %>%
+    filter(location == "HH CVICU",
+           pilot) %>%
+    ggplot(aes(x = factor(not_collected), y = dispatch_detail_diff)) +
+    geom_boxplot() +
+    theme_bg(xticks = FALSE)
+```
+
+```{r, fig.cap="Comparison of distribution of time from dispatch to scheduled collection among levels which were collected an which were not in CVICU during pilot period"}
+orders_levels %>%
+    filter(location == "HH CVICU",
+           pilot) %>%
+    ggplot(aes(x = dispatch_detail_diff)) +
+    geom_histogram() +
+    facet_wrap(~ not_collected) +
+    theme_bg(xticks = FALSE)
+```
+
+# Nurse Variation
+
+```{r}
+cvicu_orders %>%
+    filter(!is.na(rn_collect)) %>%
+    dmap_at("rn_collect", as_factor) %>%
+    mutate(rn_collect = fct_reorder(rn_collect, x = collect_detail_diff, fun = median, .desc = TRUE)) %>%
+    dmap_at("rn_collect", fct_lump, n = 25) %>%
+    ggplot(aes(x = rn_collect, y = collect_detail_diff)) +
+    geom_hline(yintercept = 0, color = "grey") +
+    geom_boxplot() +
+    scale_y_continuous("Time from Scheduled to Actual Collection (minutes)", breaks = seq(-240, 240, 60)) +
+    xlab("") +
+    coord_flip(ylim = c(-240, 240)) +
+    theme_bg()
+```
+
+```{r}
+cvicu_orders %>%
+    filter(!is.na(rn_collect)) %>%
+    dmap_at("rn_collect", fct_infreq) %>%
+    dmap_at("rn_collect", fct_rev) %>%
+    dmap_at("rn_collect", fct_lump, n = 25) %>%
+    ggplot(aes(x = rn_collect)) +
+    geom_bar() +
+    # coord_cartesian(ylim = c(-100, 100)) +
+    coord_flip() +
+    theme_bg()
+
+```
+
