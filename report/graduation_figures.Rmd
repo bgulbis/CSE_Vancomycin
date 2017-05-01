@@ -359,16 +359,24 @@ orders_levels %>%
 # Nurse Variation
 
 ```{r}
-cvicu_orders %>%
+rn <- cvicu_orders %>%
     filter(!is.na(rn_collect)) %>%
     dmap_at("rn_collect", as_factor) %>%
     mutate(rn_collect = fct_reorder(rn_collect, x = collect_detail_diff, fun = median, .desc = TRUE)) %>%
-    dmap_at("rn_collect", fct_lump, n = 25) %>%
-    ggplot(aes(x = rn_collect, y = collect_detail_diff)) +
-    geom_hline(yintercept = 0, color = "grey") +
+    dmap_at("rn_collect", fct_lump, n = 25) 
+
+
+ggplot(rn, aes(x = rn_collect, y = collect_detail_diff)) +
+    geom_rect(aes(xmin = levels(rn$rn_collect)[nlevels(rn$rn_collect)], 
+                  xmax = levels(rn$rn_collect)[1],
+                  ymin = -60,
+                  ymax = 60),
+              fill = "light gray") +
+    geom_hline(yintercept = 0, color = "dark grey") +
     geom_boxplot() +
     scale_y_continuous("Time from Scheduled to Actual Collection (minutes)", breaks = seq(-240, 240, 60)) +
     xlab("") +
+    labs(caption = "The shaded area represents the target for timely collection") +
     coord_flip(ylim = c(-240, 240)) +
     theme_bg()
 ```
