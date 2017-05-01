@@ -4,7 +4,7 @@ library(tidyverse)
 library(stringr)
 library(lubridate)
 library(edwr)
-library(assertr)
+# library(assertr)
 
 dirr::get_rds("data/tidy")
 
@@ -108,6 +108,9 @@ priority <- valid_details %>%
            freq = Frequency)
     # filter(is.na(freq) | freq != "Early AM")
 
+nurse_collect <- valid_actions %>%
+    filter(order.status == "Collected") %>%
+    select(pie.id, order.id, rn_collect = action.provider)
 
 # system_requests <- order_actions %>%
 #     filter(action.type == "Order",
@@ -181,6 +184,7 @@ priority <- valid_details %>%
 orders <- full_join(valid_timing, actions, by = c("pie.id", "order.id")) %>%
     left_join(request_times, by = c("pie.id", "order.id")) %>%
     left_join(priority, by = c("pie.id", "order.id")) %>%
+    left_join(nurse_collect, by = c("pie.id", "order.id")) %>%
     # corrected data for rows with detail.datetime that had incorrect years
     mutate(detail.datetime = if_else(detail.datetime < order.datetime - days(1), detail.datetime + years(1), detail.datetime)) %>%
     # verify(detail.datetime >= order.datetime - days(1)) %>%
