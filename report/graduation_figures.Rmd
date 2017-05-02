@@ -358,7 +358,7 @@ orders_levels %>%
 
 # Nurse Variation
 
-```{r, fig.cap="Comparison of time difference between scheduled and actual collection by nurse for Timed Study orders", fig.height=10}
+```{r, fig.cap="Comparison of time difference between scheduled and actual collection by nurse for Timed Study orders which were due on the same shift", fig.height=10}
 rn <- cvicu_orders %>%
     mutate(hour_collect = hour(Collected),
            same_shift = (shift == "day" & (hour_collect >= 7 & hour_collect < 19)) |
@@ -388,15 +388,14 @@ ggplot(rn, aes(x = rn_collect, y = collect_detail_diff)) +
     theme_bg()
 ```
 
-```{r}
-cvicu_orders %>%
-    filter(!is.na(rn_collect)) %>%
+```{r, fig.cap="Number of levels drawn by each nurse for Timed Study orders", fig.height=10}
+rn %>%
     dmap_at("rn_collect", fct_infreq) %>%
     dmap_at("rn_collect", fct_rev) %>%
-    dmap_at("rn_collect", fct_lump, n = 25) %>%
     ggplot(aes(x = rn_collect)) +
     geom_bar() +
-    # coord_cartesian(ylim = c(-100, 100)) +
+    xlab("") +
+    scale_y_continuous("Number of Levels", breaks = seq(0, 20, 2)) +
     coord_flip() +
     theme_bg()
 
