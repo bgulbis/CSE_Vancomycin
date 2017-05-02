@@ -358,12 +358,19 @@ orders_levels %>%
 
 # Nurse Variation
 
-```{r}
+```{r, fig.cap="Comparison of time difference between scheduled and actual collection by nurse for Timed Study orders", fig.height=10}
 rn <- cvicu_orders %>%
-    filter(!is.na(rn_collect)) %>%
+    mutate(hour_collect = hour(Collected),
+           same_shift = (shift == "day" & (hour_collect >= 7 & hour_collect < 19)) |
+               (shift == "night" & (hour_collect >= 19 | hour_collect < 7))) %>%
+    filter(!is.na(rn_collect),
+           str_detect(rn_collect, "RN"),
+           priority == "Timed Study",
+           future_order == "Future",
+           same_shift) %>%
     dmap_at("rn_collect", as_factor) %>%
-    mutate(rn_collect = fct_reorder(rn_collect, x = collect_detail_diff, fun = median, .desc = TRUE)) %>%
-    dmap_at("rn_collect", fct_lump, n = 25) 
+    mutate(rn_collect = fct_reorder(rn_collect, x = collect_detail_diff, fun = median, .desc = TRUE))
+    # dmap_at("rn_collect", fct_lump, n = 50) 
 
 
 ggplot(rn, aes(x = rn_collect, y = collect_detail_diff)) +
@@ -374,10 +381,10 @@ ggplot(rn, aes(x = rn_collect, y = collect_detail_diff)) +
               fill = "light gray") +
     geom_hline(yintercept = 0, color = "dark grey") +
     geom_boxplot() +
-    scale_y_continuous("Time from Scheduled to Actual Collection (minutes)", breaks = seq(-240, 240, 60)) +
+    scale_y_continuous("Time from Scheduled to Actual Collection (minutes)", breaks = seq(-360, 360, 60)) +
     xlab("") +
     labs(caption = "The shaded area represents the target for timely collection") +
-    coord_flip(ylim = c(-240, 240)) +
+    coord_flip(ylim = c(-360, 360)) +
     theme_bg()
 ```
 
