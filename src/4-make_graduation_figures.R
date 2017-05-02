@@ -8,6 +8,7 @@ library(lubridate)
 # library(qicharts)
 library(themebg)
 library(ReporteRs)
+library(SixSigma)
 
 x <- dirr::get_rds("data/tidy")
 
@@ -182,11 +183,14 @@ fig_pilot <- weekly_levels %>%
     mutate(change = round((pilot / baseline * 100) - 100, 0)) %>%
     dmap_at("key", factor, levels = c("early_am", "requests", "appropriate", "uncollected")) %>%
     ggplot(aes(x = key, y = change)) +
-    geom_bar(stat = "identity", width = 0.75) +
+    geom_bar(stat = "identity", width = 0.75, fill = "#377eb8") +
     geom_hline(yintercept = 0, color = "light gray") +
     scale_x_discrete("", labels = c("Early AM", "Requests", "Timely", "Uncollected")) +
-    scale_y_continuous("Change (%)", limits = c(-100, 100), breaks = seq(-100, 100, 25)) +
-    theme_bg(xticks = FALSE)
+    scale_y_continuous("Change (%)", limits = c(-80, 20), breaks = seq(-100, 100, 20)) +
+    theme_bg(xticks = FALSE) +
+    theme(axis.text.x = element_text(size = 14),
+          axis.title.y = element_text(size = 14),
+          axis.text.y = element_text(size = 12))
 
 cvicu_dispatch <- data_orders %>%
     filter(event.unit == "HH CVICU",
@@ -197,25 +201,46 @@ cvicu_dispatch <- data_orders %>%
            dispatch_hour = hour(dispatch_hour))
 
 fig_dispatch_histogram <- ggplot(cvicu_dispatch, aes(x = dispatch_detail_diff * 60, fill = future_order)) +
-    geom_vline(xintercept = 0, color = "light grey") +
-    geom_hline(yintercept = 0, color = "light grey") +
+    geom_vline(xintercept = 0, color = "dark grey") +
+    # geom_hline(yintercept = 0, color = "light grey") +
     geom_histogram(binwidth = 15, color = "white") +
     facet_wrap(~ priority, scales = "free_y") +
     scale_x_continuous("Task Dispatch to Scheduled Collection (minutes)", breaks = seq(-12 * 60, 12 * 60, 2 * 60)) +
     ylab("Number Dispatched") +
-    scale_fill_brewer("", palette = "Set1") +
-    coord_cartesian(xlim = c(-4 * 60, 4 * 60)) +
-    theme_bg()
+    # scale_fill_brewer("", palette = "Set1") +
+    scale_fill_manual("", values = c("#377eb8", "#4daf4a")) +
+    coord_cartesian(xlim = c(-2 * 60, 4 * 60)) +
+    theme_bg() +
+    theme(axis.title = element_text(size = 14),
+          axis.title.x = element_text(margin = margin(20, 0, 0, 0)),
+          axis.text = element_text(size = 12),
+          strip.text = element_text(size = 14),
+          legend.text = element_text(size = 14))
+
 
 fig_dispatch_batch <- cvicu_dispatch %>%
     filter(priority %in% c("Routine", "Timed Study")) %>%
     count(priority, dispatch_hour) %>%
     ggplot(aes(x = dispatch_hour, y = n)) +
-    geom_bar(stat = "identity") +
+    geom_bar(stat = "identity", fill = "#377eb8") +
     scale_x_continuous("Dispatch Hour of Day", breaks = seq(0, 24, 6)) +
     ylab("Number of Orders") +
     scale_fill_brewer("Order Priority") +
-    theme_bg()
+    theme_bg() +
+    theme(axis.title = element_text(size = 14),
+          axis.title.x = element_text(margin = margin(20, 0, 0, 0)),
+          axis.text = element_text(size = 12),
+          strip.text = element_text(size = 14),
+          legend.text = element_text(size = 14))
+
+# Cause and Effect -------------------------------------
+
+ss_effect <- "Untimely Levels"
+ss_causes_gr <- c("Nursing", "Provider", "System")
+ss_causes <- c(list(c("Handoff", "Work flow", "Other patient")),
+               list(c("Order method", "Requests", "Early AM")),
+               list(c("Task view", "Task dispatch", "Downtime")))
+ss_sub <- ""
 
 # PowerPoint -------------------------------------------
 
@@ -244,7 +269,7 @@ doc <- pptx() %>%
             offx = 1,
             offy = 1,
             width = 4,
-            height = 3,
+            height = 4,
             vector.graphic = TRUE,
             fontname_sans = "Calibri") %>%
     addSlide(slide.layout = "Blank") %>%
@@ -252,7 +277,7 @@ doc <- pptx() %>%
             x = fig_dispatch_histogram,
             offx = 1,
             offy = 1,
-            width = 6,
+            width = 7,
             height = 4.5,
             vector.graphic = TRUE,
             fontname_sans = "Calibri") %>%
@@ -261,8 +286,17 @@ doc <- pptx() %>%
             x = fig_dispatch_batch,
             offx = 1,
             offy = 1,
-            width = 6,
+            width = 7,
             height = 4.5,
+            vector.graphic = TRUE,
+            fontname_sans = "Calibri") %>%
+    addSlide(slide.layout = "Blank") %>%
+    addPlot(fun = function() ss.ceDiag(ss_effect, ss_causes_gr, ss_causes, main = "", sub = ""),
+            offx = 1,
+            offy = 1,
+            width = 7,
+            height = 4.5,
+            pointsize = 24,
             vector.graphic = TRUE,
             fontname_sans = "Calibri")
 
