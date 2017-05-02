@@ -101,7 +101,8 @@ weekly_requests <- orders_requests %>%
     filter(week != "2016-03-27", week != end_date)
 
 weekly_levels <- cvicu %>%
-    filter(week != "2016-03-27", week != end_date) %>%
+    filter(week != "2016-03-27", week != end_date,
+           !is.na(Dispatched)) %>%
     group_by(week) %>%
     summarize(levels = n(),
              early_am = sum(early_am),
