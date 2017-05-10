@@ -15,7 +15,7 @@ vanc_levels <- read_data("data/raw", "vanc_level") %>%
 orders <- bind_rows(timing["order.id"], vanc_levels["order.id"]) %>%
     distinct()
 
-id <- concat_encounters(orders$order.id)
+id <- concat_encounters(orders$order.id, 950)
 
 # run EDW queries:
 #   * Orders - Actions - Source Order ID Prompt
