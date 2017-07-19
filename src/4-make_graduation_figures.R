@@ -1,6 +1,7 @@
 # make figures for graduation presentation
 
 library(tidyverse)
+library(purrrlyr)
 library(stringr)
 library(forcats)
 library(lubridate)
@@ -8,7 +9,7 @@ library(lubridate)
 # library(qicharts)
 library(themebg)
 library(ReporteRs)
-library(SixSigma)
+# library(SixSigma)
 
 x <- dirr::get_rds("data/tidy")
 
@@ -242,12 +243,20 @@ fig_dispatch_histogram <- ggplot(cvicu_dispatch, aes(x = dispatch_detail_diff * 
     scale_fill_brewer("", palette = "Set1", direction = -1, labels = c("Before Level Due", "After Level Due")) +
     coord_cartesian(xlim = c(-2 * 60, 4 * 60)) +
     theme_bg() +
-    theme(axis.title = element_text(size = 14),
+    theme(axis.title = element_text(size = 18),
           axis.title.x = element_text(margin = margin(20, 0, 0, 0)),
-          axis.text = element_text(size = 12),
-          strip.text = element_text(size = 14),
-          legend.text = element_text(size = 14),
+          axis.text = element_text(size = 18),
+          strip.text = element_text(size = 18),
+          legend.text = element_text(size = 18),
           legend.position = "bottom")
+
+data_dispatch_histogram <- ggplot_build(fig_dispatch_histogram)$data[[2]] %>%
+    mutate(group = if_else(fill == "#E41A1C", "before", "after")) %>%
+    select(group, x, y = count) %>%
+    spread(group, y) %>%
+    filter(x >= -120, x <= 240)
+
+write_csv(data_dispatch_histogram, "data/external/figure-data_dispatch-histogram.csv")
 
 fig_dispatch_histogram_by_priority <- ggplot(cvicu_dispatch, aes(x = dispatch_detail_diff * 60, fill = dispatch_late)) +
     geom_vline(xintercept = 0, color = "black") +
@@ -266,6 +275,14 @@ fig_dispatch_histogram_by_priority <- ggplot(cvicu_dispatch, aes(x = dispatch_de
           legend.text = element_text(size = 14),
           legend.position = "bottom")
 
+data_dispatch_histogram_by_priority <- ggplot_build(fig_dispatch_histogram_by_priority)$data[[2]] %>%
+    mutate(group = if_else(fill == "#E41A1C", "before", "after")) %>%
+    select(panel = PANEL, group, x, y = count) %>%
+    filter(x >= -120, x <= 240) %>%
+    spread(group, y)
+
+write_csv(data_dispatch_histogram_by_priority, "data/external/figure-data_dispatch-histogram-priority.csv")
+
 fig_dispatch_batch <- cvicu_dispatch %>%
     filter(priority %in% c("Routine", "Timed Study")) %>%
     count(priority, dispatch_hour) %>%
@@ -281,14 +298,20 @@ fig_dispatch_batch <- cvicu_dispatch %>%
           strip.text = element_text(size = 14),
           legend.text = element_text(size = 14))
 
+data_dispatch_batch <- cvicu_dispatch %>%
+    filter(priority %in% c("Routine", "Timed Study")) %>%
+    count(dispatch_hour)
+
+write_csv(data_dispatch_batch, "data/external/figure-data_dispatch-batch.csv")
+
 # Cause and Effect -------------------------------------
 
-ss_effect <- "Untimely Levels"
-ss_causes_gr <- c("Nursing", "Provider", "System")
-ss_causes <- c(list(c("Handoff", "Work flow", "Other patient")),
-               list(c("Order method", "Requests", "Early AM")),
-               list(c("Task view", "Task dispatch", "Downtime")))
-ss_sub <- ""
+# ss_effect <- "Untimely Levels"
+# ss_causes_gr <- c("Nursing", "Provider", "System")
+# ss_causes <- c(list(c("Handoff", "Work flow", "Other patient")),
+#                list(c("Order method", "Requests", "Early AM")),
+#                list(c("Task view", "Task dispatch", "Downtime")))
+# ss_sub <- ""
 
 # PowerPoint -------------------------------------------
 
@@ -356,15 +379,15 @@ doc <- pptx() %>%
             height = 4.5,
             vector.graphic = TRUE,
             fontname_sans = "Calibri") %>%
-    addSlide(slide.layout = "Blank") %>%
-    addPlot(fun = function() ss.ceDiag(ss_effect, ss_causes_gr, ss_causes, main = "", sub = ""),
-            offx = 1,
-            offy = 1,
-            width = 7,
-            height = 4.5,
-            pointsize = 24,
-            vector.graphic = TRUE,
-            fontname_sans = "Calibri")
+    addSlide(slide.layout = "Blank")
+    # addPlot(fun = function() ss.ceDiag(ss_effect, ss_causes_gr, ss_causes, main = "", sub = ""),
+    #         offx = 1,
+    #         offy = 1,
+    #         width = 7,
+    #         height = 4.5,
+    #         pointsize = 24,
+    #         vector.graphic = TRUE,
+    #         fontname_sans = "Calibri")
 
 writeDoc(doc, file = "doc/graduation_figures.pptx")
 
