@@ -20,6 +20,7 @@ options(htmltools.dir.version = FALSE)
 
 ```{r, message=FALSE}
 library(tidyverse)
+library(purrrlyr)
 library(stringr)
 library(forcats)
 library(lubridate)
@@ -104,12 +105,17 @@ Inappropriately drawn levels lead to inaccurate dosing and treatment decisions, 
 Increase the amount of appropriately collected vancomycin levels in CVICU from 60% to 80% by April 2017.
 
 ```{r monthly-trend, fig.cap="Inappropriately Collected and Uncollected Levels in CVICU", fig.margin=TRUE}
-cvicu %>%
+data_fig <- cvicu %>%
     group_by(month) %>%
     summarize(appropriate = 100 - (sum(appropriate) / n() * 100),
               uncollected = sum(uncollected) / n() * 100) %>%
-    gather(key, value, appropriate, uncollected) %>%
-    ggplot(aes(x = month, y = value)) +
+    gather(key, value, appropriate, uncollected) 
+
+data_fig %>%
+    spread(key, value) %>%
+    write_csv("../data/external/figure-data_baseline-performance.csv")
+
+ggplot(data_fig, aes(x = month, y = value)) +
     geom_line(aes(color = key), size = 2) + 
     geom_smooth(aes(linetype = key), color = "black", method = "lm", size = 0.5) +
     xlab("Month") +
